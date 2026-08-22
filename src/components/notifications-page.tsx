@@ -2,22 +2,30 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Bell, Check, Package, CreditCard, Users, Star, DollarSign } from 'lucide-react'
+import { Bell, Check, Package, CreditCard, Users, Star, DollarSign, BellRing } from 'lucide-react'
 import { useNotifications } from '@/components/notification-provider'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
 import { Notification } from '@/types'
 import { formatDate } from '@/lib/utils'
+import { getNotificationPermission, requestNotificationPermission } from '@/lib/push-notifications'
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<(Notification & { read?: boolean })[]>([])
   const [loading, setLoading] = useState(true)
+  const [notifPermission, setNotifPermission] = useState<ReturnType<typeof getNotificationPermission>>('default')
   const { markAsRead, markAllAsRead } = useNotifications()
   const { user } = useAuth()
 
   useEffect(() => {
     loadNotifications()
+    setNotifPermission(getNotificationPermission())
   }, [])
+
+  const handleEnableNotifications = async () => {
+    const result = await requestNotificationPermission()
+    setNotifPermission(result)
+  }
 
   const loadNotifications = async () => {
     try {
@@ -68,6 +76,23 @@ export default function NotificationsPage() {
             </button>
           )}
         </div>
+
+        {notifPermission === 'default' && (
+          <button
+            onClick={handleEnableNotifications}
+            className="w-full flex items-center gap-3 bg-primary-50 border border-primary-100 rounded-2xl p-4 mb-4 text-left hover:bg-primary-100 transition-colors"
+          >
+            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <BellRing size={18} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-sm text-primary-900">Aktifkan Notifikasi</p>
+              <p className="text-xs text-primary-700 mt-0.5">
+                Supaya kamu tidak ketinggalan update pesanan, pembayaran, dan promo — klik untuk mengizinkan.
+              </p>
+            </div>
+          </button>
+        )}
 
         <div className="space-y-3">
           {notifications.length === 0 ? (

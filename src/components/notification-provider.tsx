@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { Notification } from '@/types'
 import { useAuth } from '@/components/auth-provider'
+import { showBrowserNotification } from '@/lib/push-notifications'
 
 interface NotificationContextType {
   notifications: Notification[]
@@ -91,6 +92,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               color: '#fff',
               borderRadius: '12px',
             },
+          })
+
+          // Also fire a native browser notification (if the user has
+          // granted permission) so this isn't missed just because the
+          // tab isn't focused — the toast above only works while the
+          // tab is actively being looked at.
+          showBrowserNotification(notification.title || 'Kograph Store', {
+            body: notification.message,
+            tag: notification.id,
           })
         }
       )

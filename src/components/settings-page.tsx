@@ -6,23 +6,56 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { 
   ArrowLeft, Save, User, Shield, Store, 
-  ShoppingBag, DollarSign, Settings, Camera, Loader2
+  ShoppingBag, DollarSign, Settings, Camera, Loader2, Bell
 } from 'lucide-react'
 import { useAuth } from '@/components/auth-provider'
 import { supabase } from '@/lib/supabase'
 import { uploadAvatar } from '@/lib/utils'
+import { getNotificationPermission, requestNotificationPermission } from '@/lib/push-notifications'
 import toast from 'react-hot-toast'
 
 export default function SettingsPage() {
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [language, setLanguage] = useState('id')
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [notifPermission, setNotifPermission] = useState<ReturnType<typeof getNotificationPermission>>('default')
   const [loading, setLoading] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const { user, profile, updateProfile, loading: authLoading } = useAuth()
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission())
+  }, [])
+
+  const handleToggleNotifications = async () => {
+    if (notifPermission === 'denied') {
+      toast.error('Notifikasi diblokir di browser. Aktifkan lewat pengaturan situs di address bar.')
+      return
+    }
+    if (notifPermission === 'unsupported') {
+      toast.error('Browser ini tidak mendukung notifikasi push')
+      return
+    }
+    if (notifPermission === 'granted') {
+      // Browsers give JS no way to programmatically revoke a
+      // permission it already granted — that can only be undone by
+      // the user via browser settings. Just explain that plainly.
+      toast('Untuk menonaktifkan, ubah lewat pengaturan situs di browser.', { icon: 'ℹ️' })
+      return
+    }
+
+    // This is the actual popup — only fires from a real click, which
+    // this is.
+    const result = await requestNotificationPermission()
+    setNotifPermission(result)
+    if (result === 'granted') {
+      toast.success('Notifikasi berhasil diaktifkan!')
+    } else if (result === 'denied') {
+      toast.error('Izin notifikasi ditolak')
+    }
+  }
 
   useEffect(() => {
     if (profile) {
@@ -198,24 +231,36 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                  <DollarSign size={20} className="text-primary-600" />
+                  <Bell size={20} className="text-primary-600" />
                 </div>
                 <div>
                   <p className="font-medium">Notifikasi Push</p>
-                  <p className="text-sm text-gray-500">Terima notifikasi real-time</p>
+                  <p className="text-sm text-gray-500">
+                    {notifPermission === 'granted'
+                      ? 'Aktif — kamu akan menerima notifikasi'
+                      : notifPermission === 'denied'
+                        ? 'Diblokir di pengaturan browser'
+                        : 'Belum diaktifkan'}
+                  </p>
                 </div>
               </div>
               <button
-                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-                className={`w-12 h-6 rounded-full transition-colors ${
-                  notificationsEnabled ? 'bg-primary-600' : 'bg-gray-300'
+                onClick={handleToggleNotifications}
+                disabled={notifPermission === 'unsupported'}
+                className={`w-12 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                  notifPermission === 'granted' ? 'bg-primary-600' : 'bg-gray-300'
                 }`}
               >
                 <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                  notificationsEnabled ? 'translate-x-7' : 'translate-x-1'
+                  notifPermission === 'granted' ? 'translate-x-7' : 'translate-x-1'
                 }`} />
               </button>
             </div>
+            {notifPermission === 'denied' && (
+              <p className="text-xs text-amber-600 mt-3">
+                Notifikasi sudah kamu blokir sebelumnya. Aktifkan lagi lewat ikon gembok/info di address bar browser → Izin situs → Notifikasi.
+              </p>
+            )}
           </div>
 
           {/* Save Button */}

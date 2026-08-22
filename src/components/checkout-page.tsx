@@ -233,6 +233,36 @@ export default function CheckoutPage() {
         return
       }
 
+      // Midtrans requires item_details to sum to EXACTLY gross_amount.
+      // Since gross_amount includes tax (and shipping for physical
+      // orders), those need their own line items too — otherwise the
+      // backend's payload validation correctly rejects the mismatch
+      // (as it should: a silent mismatch there is exactly the kind of
+      // bug that causes wrong charges).
+      const midtransItemDetails = orderItemsPayload.map((item) => ({
+        id: item.product_id,
+        price: item.price,
+        quantity: item.quantity,
+        name: item.product_name,
+      }))
+
+      if (tax > 0) {
+        midtransItemDetails.push({
+          id: 'tax',
+          price: tax,
+          quantity: 1,
+          name: 'Pajak (5%)',
+        })
+      }
+      if (shipping > 0) {
+        midtransItemDetails.push({
+          id: 'shipping',
+          price: shipping,
+          quantity: 1,
+          name: 'Ongkos Kirim',
+        })
+      }
+
       const paymentResponse = await fetch('/api/payments/snap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -243,12 +273,7 @@ export default function CheckoutPage() {
           phone: normalizedShippingAddress.phone,
           customerName: normalizedShippingAddress.full_name,
           paymentMethod,
-          itemDetails: orderItemsPayload.map((item) => ({
-            id: item.product_id,
-            price: item.price,
-            quantity: item.quantity,
-            name: item.product_name,
-          })),
+          itemDetails: midtransItemDetails,
           shippingAddress: requiredShipping ? normalizedShippingAddress : undefined,
         }),
       })
@@ -584,7 +609,7 @@ export default function CheckoutPage() {
                   <span>{formatCurrency(totalAmount)}</span>
                 </div>
                 <div className="flex justify-between text-gray-600">
-                  <span>Pajak (10%)</span>
+                  <span>Pajak (5%)</span>
                   <span>{formatCurrency(tax)}</span>
                 </div>
                 {requiredShipping && (
