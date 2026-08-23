@@ -287,6 +287,9 @@ export default function CheckoutPage() {
         // something wrong.
         if (paymentData.code === 'MIDTRANS_CONFIG_MISSING' || paymentData.code === 'MIDTRANS_AUTH_ERROR') {
           toast.error('Pembayaran online sedang bermasalah di sisi kami. Silakan coba lagi nanti atau gunakan metode lain.')
+        } else if (paymentData.code === 'MIDTRANS_REQUEST_REJECTED' && paymentData.details) {
+          const detailText = Array.isArray(paymentData.details) ? paymentData.details.join('; ') : String(paymentData.details)
+          toast.error(`Ditolak Midtrans: ${detailText}`)
         } else {
           toast.error(paymentData.error || 'Gagal memproses pembayaran')
         }

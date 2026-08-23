@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/types'
+import toast from 'react-hot-toast'
 
 interface AuthContextType {
   user: any | null
@@ -42,7 +43,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         if (data) {
-          setProfile(data as Profile)
+          const profileData = data as Profile
+          // Catches the case where a session is already active and the
+          // account gets banned in the meantime (not just at the next
+          // login) — loadProfile runs on every auth state refresh.
+          if (profileData.banned_until && new Date(profileData.banned_until) > new Date()) {
+            const until = new Date(profileData.banned_until).toLocaleString('id-ID')
+            await supabase.auth.signOut()
+            setProfile(null)
+            toast.error(`Akun Anda di-banned hingga ${until}.${profileData.ban_reason ? ` Alasan: ${profileData.ban_reason}` : ''}`)
+            return
+          }
+          setProfile(profileData)
           return
         } else {
           setProfile(null)
@@ -151,11 +163,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [ensureProfile])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
     if (error) throw error
+
+    // Check for an active ban immediately after auth succeeds — a
+    // banned account shouldn't get a working session at all, not just
+    // a degraded one.
+    if (data.user) {
+      const { data: profileRow } = await (supabase as any)
+        .from('profiles')
+        .select('banned_until, ban_reason')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profileRow?.banned_until && new Date(profileRow.banned_until) > new Date()) {
+        await supabase.auth.signOut()
+        const until = new Date(profileRow.banned_until).toLocaleString('id-ID')
+        throw new Error(
+          `Akun Anda di-banned hingga ${until}.${profileRow.ban_reason ? ` Alasan: ${profileRow.ban_reason}` : ''}`
+        )
+      }
+    }
   }
 
   const signUp = async (email: string, password: string, fullName: string, username: string) => {

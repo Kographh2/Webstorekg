@@ -24,15 +24,36 @@ export async function POST(request: NextRequest) {
   if (role !== 'owner') return NextResponse.json({ error: `Akses ditolak: role akun adalah ${role || 'tanpa role'}.` }, { status: 403 })
 
   try {
-    const { subject, body } = await request.json()
-    const { data: broadcastId, error: createError } = await requester.rpc('owner_create_broadcast', { p_subject: subject, p_body: body })
+    const { subject, body, imageUrl, broadcastType } = await request.json()
+    const { data: broadcastId, error: createError } = await requester.rpc('owner_create_broadcast', {
+      p_subject: subject,
+      p_body: body,
+      p_image_url: imageUrl || null,
+      p_broadcast_type: broadcastType || 'normal',
+    })
     if (createError || !broadcastId) return NextResponse.json({ error: createError?.message || 'Gagal membuat broadcast.' }, { status: 400 })
+
+    // Fan the broadcast out as an in-app notification for every user —
+    // this is what makes it show up on the Notifications page and
+    // trigger a native browser popup (via the realtime subscription +
+    // Notification API already wired in notification-provider.tsx),
+    // not just an email.
+    const { error: fanoutError } = await requester.rpc('owner_fanout_broadcast_notification', {
+      p_title: subject,
+      p_message: body,
+      p_broadcast_id: broadcastId,
+    })
+    if (fanoutError) console.error('Broadcast notification fanout error:', fanoutError)
+
     const { data: recipients, error: recipientsError } = await requester.rpc('owner_broadcast_recipients')
     if (recipientsError) throw recipientsError
 
     const emails: string[] = [...new Set(((recipients || []) as { email: string }[]).map((item) => item.email).filter((email): email is string => typeof email === 'string' && email.length > 0))]
     const transporter = nodemailer.createTransport({ host, port: Number(process.env.SMTP_PORT || 587), secure: Number(process.env.SMTP_PORT) === 465, auth: { user: smtpUser, pass: smtpPass } })
-    for (const to of emails) await transporter.sendMail({ from, to, subject, text: body, html: body.replace(/\n/g, '<br>') })
+    const emailHtml = imageUrl
+      ? `<img src="${imageUrl}" alt="" style="max-width:100%;border-radius:8px;margin-bottom:16px;" />${body.replace(/\n/g, '<br>')}`
+      : body.replace(/\n/g, '<br>')
+    for (const to of emails) await transporter.sendMail({ from, to, subject, text: body, html: emailHtml })
     await requester.rpc('owner_complete_broadcast', { p_broadcast_id: broadcastId, p_status: 'sent' })
     return NextResponse.json({ sent: emails.length })
   } catch (error) {

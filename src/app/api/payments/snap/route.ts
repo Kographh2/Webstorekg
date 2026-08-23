@@ -269,8 +269,22 @@ export async function POST(request: NextRequest) {
             )
           }
           if (response.status >= 400 && response.status < 500) {
+            // Midtrans's own rejection reason (e.g. "parameter is
+            // invalid", "order_id already taken") lives in
+            // error_messages / validation_messages in its response
+            // body — safe to forward as-is (no secrets, just
+            // human-readable validation text), so we can actually see
+            // why instead of guessing blind next time this happens.
+            const midtransMessages =
+              (midtransErrorBody as any)?.error_messages ||
+              (midtransErrorBody as any)?.validation_messages ||
+              null
             return NextResponse.json(
-              { error: 'Payment gateway rejected the transaction request', code: 'MIDTRANS_REQUEST_REJECTED' },
+              {
+                error: 'Payment gateway rejected the transaction request',
+                code: 'MIDTRANS_REQUEST_REJECTED',
+                details: midtransMessages,
+              },
               { status: 400 }
             )
           }

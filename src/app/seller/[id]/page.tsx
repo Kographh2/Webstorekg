@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Star, Heart, Share2, UserPlus, UserCheck, MapPin, Package, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Star, UserPlus, UserCheck, Package, CheckCircle2, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
-import { formatCurrency } from '@/lib/utils'
 import ProductCard from '@/components/product-card'
 import toast from 'react-hot-toast'
 
@@ -26,11 +25,11 @@ export default function SellerProfilePage() {
 
   useEffect(() => {
     loadSellerProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sellerId])
 
   const loadSellerProfile = async () => {
     try {
-      // Load seller profile
       const { data: sellerData } = await supabase
         .from('profiles')
         .select('*')
@@ -44,7 +43,6 @@ export default function SellerProfilePage() {
 
       setSeller(sellerData)
 
-      // Load shop
       const { data: shopData } = await (supabase as any)
         .from('shops')
         .select('*')
@@ -54,7 +52,6 @@ export default function SellerProfilePage() {
       if (shopData) {
         setShop(shopData)
 
-        // Load products
         const { data: productsData } = await (supabase as any)
           .from('products')
           .select('*')
@@ -65,22 +62,20 @@ export default function SellerProfilePage() {
         setProducts(productsData || [])
       }
 
-      // Load follower count
       const { count } = await supabase
         .from('follows')
-        .select('*', { count: 'exact' })
+        .select('*', { count: 'exact', head: true })
         .eq('following_id', sellerId)
 
       setFollowerCount(count || 0)
 
-      // Check if current user is following
       if (user) {
         const { data: followData } = await supabase
           .from('follows')
           .select('*')
           .eq('follower_id', user.id)
           .eq('following_id', sellerId)
-          .single()
+          .maybeSingle()
 
         setIsFollowing(!!followData)
       }
@@ -100,7 +95,6 @@ export default function SellerProfilePage() {
     setFollowLoading(true)
     try {
       if (isFollowing) {
-        // Unfollow
         const { error } = await supabase
           .from('follows')
           .delete()
@@ -109,10 +103,9 @@ export default function SellerProfilePage() {
 
         if (error) throw error
         setIsFollowing(false)
-        setFollowerCount(followerCount - 1)
+        setFollowerCount((c) => Math.max(0, c - 1))
         toast.success('Berhenti mengikuti seller')
       } else {
-        // Follow
         const { error } = await (supabase as any)
           .from('follows')
           .insert({
@@ -122,7 +115,7 @@ export default function SellerProfilePage() {
 
         if (error) throw error
         setIsFollowing(true)
-        setFollowerCount(followerCount + 1)
+        setFollowerCount((c) => c + 1)
         toast.success('Berhasil mengikuti seller')
       }
     } catch (error) {
@@ -147,103 +140,110 @@ export default function SellerProfilePage() {
 
   const isOwnShop = user?.id === sellerId
 
+  const stats = [
+    { label: 'Rating', value: (shop.rating || 0).toFixed(1), icon: <Star size={14} className="text-yellow-400 fill-yellow-400" /> },
+    { label: 'Ulasan', value: shop.total_reviews || 0 },
+    { label: 'Terjual', value: shop.total_sold ?? 0 },
+    { label: 'Pengikut', value: followerCount },
+  ]
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
-          <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100">
+    <div className="min-h-screen bg-gray-50 pb-10">
+      {/* Header — sticky, full width, mobile-first */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+          <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-gray-100 flex-shrink-0">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">{shop.name}</h1>
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">{shop.name}</h1>
         </div>
       </div>
 
-      {/* Banner and Profile */}
+      {/* Profile card */}
       <div className="bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="flex items-start gap-6">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left gap-4">
             {/* Logo */}
-            <div className="w-24 h-24 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
               {shop.logo_url ? (
-                <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover rounded-2xl" />
+                <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
               ) : (
-                <Package size={40} className="text-white" />
+                <Package size={32} className="text-white" />
               )}
             </div>
 
             {/* Info */}
-            <div className="flex-1">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">{shop.name}</h1>
-                  <p className="text-gray-600 mb-4">{shop.description || 'Toko online terpercaya'}</p>
-
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <Star size={18} className="text-yellow-400 fill-yellow-400" />
-                      <span className="font-semibold">{shop.rating || 0}</span>
-                    </div>
-                    <div className="text-gray-600">
-                      <span className="font-semibold">{shop.total_reviews || 0}</span> Ulasan
-                    </div>
-                    <div className="text-gray-600">
-                      <span className="font-semibold">{shop.total_sold ?? 0}</span> Terjual
-                    </div>
-                    <div className="text-gray-600">
-                      <span className="font-semibold">{followerCount}</span> Pengikut
-                    </div>
-                  </div>
-
-                  {shop.is_verified && (
-                    <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
-                      <CheckCircle2 size={16} />
-                      Toko Terverifikasi
-                    </div>
-                  )}
-                </div>
-
-                {!isOwnShop && (
-                  <button
-                    onClick={handleFollowToggle}
-                    disabled={followLoading}
-                    className={`px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all ${
-                      isFollowing
-                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        : 'bg-primary-600 text-white hover:bg-primary-700'
-                    }`}
-                  >
-                    {isFollowing ? (
-                      <>
-                        <UserCheck size={18} />
-                        Sedang Diikuti
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={18} />
-                        Ikuti
-                      </>
-                    )}
-                  </button>
+            <div className="flex-1 min-w-0 w-full">
+              <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap mb-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{shop.name}</h1>
+                {shop.is_verified && (
+                  <ShieldCheck size={20} className="text-primary-600 flex-shrink-0" />
                 )}
               </div>
+              <p className="text-sm text-gray-600 mb-3 line-clamp-2">{shop.description || 'Toko online terpercaya'}</p>
+
+              {shop.is_verified && (
+                <div className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-medium mb-3">
+                  <CheckCircle2 size={12} />
+                  Toko Terverifikasi
+                </div>
+              )}
+
+              {!isOwnShop && (
+                <button
+                  onClick={handleFollowToggle}
+                  disabled={followLoading}
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60 ${
+                    isFollowing
+                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-primary-600 text-white hover:bg-primary-700'
+                  }`}
+                >
+                  {isFollowing ? (
+                    <>
+                      <UserCheck size={16} />
+                      Sedang Diikuti
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={16} />
+                      Ikuti Toko
+                    </>
+                  )}
+                </button>
+              )}
             </div>
+          </div>
+
+          {/* Stats — always visible, tappable-looking grid so followers
+              (and rating/sold/reviews) are checkable at a glance instead
+              of buried in a paragraph. */}
+          <div className="grid grid-cols-4 gap-2 mt-5 pt-5 border-t border-gray-100">
+            {stats.map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className="flex items-center justify-center gap-1 font-bold text-gray-900 text-sm sm:text-base">
+                  {stat.icon}
+                  {stat.value}
+                </div>
+                <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">{stat.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Products */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-          Produk Toko <span className="text-gray-400 font-normal text-lg">({products.length})</span>
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
+          Produk Toko <span className="text-gray-400 font-normal text-sm">({products.length})</span>
         </h2>
         {products.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center">
-            <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600">Belum ada produk</p>
+          <div className="bg-white rounded-2xl p-10 text-center border border-gray-100">
+            <Package className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-600 text-sm">Belum ada produk</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
@@ -251,14 +251,5 @@ export default function SellerProfilePage() {
         )}
       </div>
     </div>
-  )
-}
-
-function CheckCircle({ size, className }: { size: number; className: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-    </svg>
   )
 }

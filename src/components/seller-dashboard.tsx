@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { 
   Package, TrendingUp, DollarSign, Star, Plus, Settings, 
   BarChart3, Users, ShoppingBag, ArrowUpRight,
-  Store, Edit, Trash2
+  Store, Edit, Trash2, Megaphone
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
@@ -235,6 +235,12 @@ export default function SellerDashboard() {
               className="p-2 rounded-full bg-white border border-gray-200 hover:bg-gray-50"
             >
               <Settings size={20} className="text-gray-600" />
+            </button>
+            <button
+              onClick={() => router.push('/seller/ads')}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Megaphone size={18} /> Beli Iklan
             </button>
             <button 
               onClick={() => router.push('/product/create')}

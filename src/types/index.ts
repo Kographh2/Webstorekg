@@ -6,6 +6,8 @@ export interface Profile {
   avatar_url: string | null
   role: 'owner' | 'admin' | 'seller' | 'customer'
   is_verified: boolean
+  banned_until?: string | null
+  ban_reason?: string | null
   created_at: string
   updated_at: string
 }
@@ -22,6 +24,8 @@ export interface Shop {
   rating: number
   total_reviews: number
   total_sold: number
+  banned_until?: string | null
+  ban_reason?: string | null
   created_at: string
   updated_at: string
 }
@@ -124,6 +128,32 @@ export interface Withdrawal {
   processed_by: string | null
   processed_at: string | null
   created_at: string
+}
+
+export interface Ad {
+  id: string
+  shop_id: string
+  submitted_by: string
+  product_id: string | null
+  target_url: string
+  image_url: string
+  title: string
+  description: string
+  price_paid: number
+  status: 'pending' | 'approved' | 'rejected' | 'expired'
+  auto_flagged: boolean
+  flag_reason: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  rejection_reason: string | null
+  review_deadline: string
+  starts_at: string | null
+  expires_at: string | null
+  created_at: string
+  // Only present via the ads_admin_view (owner-only)
+  submitter_username?: string
+  submitter_email?: string
+  shop_name?: string
 }
 
 export interface Notification {
