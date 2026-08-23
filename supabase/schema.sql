@@ -799,4 +799,224 @@ insert into public.platform_settings (key, value) values
   ('shop_auto_verify_threshold', '50')
 on conflict (key) do nothing;
 
+-- ============================================
+-- 37. BAN SYSTEM — manual, owner/admin-set duration
+-- ============================================
+alter table public.profiles
+  add column if not exists banned_until timestamptz,
+  add column if not exists ban_reason text;
 
+alter table public.shops
+  add column if not exists banned_until timestamptz,
+  add column if not exists ban_reason text;
+
+-- A banned shop's products stop showing up publicly the moment the ban
+-- is set (not just at review time), without needing to touch
+-- is_active on every product individually.
+drop policy if exists "Anyone can view active products" on public.products;
+create policy "Anyone can view active products" on public.products for select using (
+  is_active = true
+  and exists (
+    select 1 from public.shops s
+    where s.id = products.shop_id
+      and (s.banned_until is null or s.banned_until < now())
+  )
+);
+
+-- Owner-only RPC to (un)ban a shop or a user with a manual expiry.
+-- Passing p_until = null lifts the ban immediately.
+create or replace function public.owner_set_shop_ban(p_shop_id uuid, p_until timestamptz, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if public.current_profile_role() <> 'owner' and public.current_profile_role() <> 'admin' then
+    raise exception 'Owner/admin access required' using errcode = '42501';
+  end if;
+  update public.shops set banned_until = p_until, ban_reason = p_reason where id = p_shop_id;
+end;
+$$;
+
+create or replace function public.owner_set_user_ban(p_user_id uuid, p_until timestamptz, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if public.current_profile_role() <> 'owner' and public.current_profile_role() <> 'admin' then
+    raise exception 'Owner/admin access required' using errcode = '42501';
+  end if;
+  update public.profiles set banned_until = p_until, ban_reason = p_reason where id = p_user_id;
+end;
+$$;
+
+revoke all on function public.owner_set_shop_ban(uuid, timestamptz, text) from public;
+revoke all on function public.owner_set_user_ban(uuid, timestamptz, text) from public;
+grant execute on function public.owner_set_shop_ban(uuid, timestamptz, text) to authenticated;
+grant execute on function public.owner_set_user_ban(uuid, timestamptz, text) to authenticated;
+
+-- ============================================
+-- 38. BROADCAST — image + type, and web/in-app fan-out
+-- ============================================
+-- (image_url / broadcast_type columns are already part of the
+-- email_broadcasts CREATE TABLE above — added there directly, not via
+-- ALTER TABLE here, since owner_create_broadcast() references them and
+-- is defined earlier in this same file; ALTER-ing this late would run
+-- after that function's CREATE and break it.)
+
+-- Owner-only RPC that fans a broadcast out as an in-app notification
+-- row for every user. notifications-page.tsx already renders these,
+-- and notification-provider.tsx already fires a native browser popup
+-- for every new row a user receives via realtime — so this single
+-- insert is what makes a broadcast actually show up as a popup on
+-- phone/PC/laptop, not just an email.
+create or replace function public.owner_fanout_broadcast_notification(
+  p_title text,
+  p_message text,
+  p_broadcast_id uuid
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  if public.current_profile_role() <> 'owner' then
+    raise exception 'Owner access required' using errcode = '42501';
+  end if;
+
+  insert into public.notifications (user_id, title, message, type, data)
+  select id, p_title, p_message, 'system', jsonb_build_object('broadcast_id', p_broadcast_id)
+  from public.profiles;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.owner_fanout_broadcast_notification(text, text, uuid) from public;
+grant execute on function public.owner_fanout_broadcast_notification(text, text, uuid) to authenticated;
+
+-- ============================================
+-- 39. ADS MARKETPLACE
+-- ============================================
+create table if not exists public.ads (
+  id uuid default gen_random_uuid() primary key,
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  submitted_by uuid not null references public.profiles(id) on delete cascade,
+  product_id uuid references public.products(id) on delete set null,
+  target_url text not null,
+  image_url text not null,
+  title text not null check (char_length(title) between 1 and 100),
+  description text not null check (char_length(description) between 1 and 500),
+  price_paid numeric(12,2) not null default 0,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'expired')),
+  auto_flagged boolean default false,
+  flag_reason text,
+  reviewed_by uuid references public.profiles(id),
+  reviewed_at timestamptz,
+  rejection_reason text,
+  review_deadline timestamptz not null default (now() + interval '24 hours'),
+  starts_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz default now() not null
+);
+
+alter table public.ads enable row level security;
+
+create policy "Anyone can view approved active ads" on public.ads for select using (
+  status = 'approved' and (expires_at is null or expires_at > now())
+);
+create policy "Sellers can view own ads" on public.ads for select using (
+  exists (select 1 from public.shops where id = shop_id and owner_id = auth.uid())
+);
+create policy "Sellers can submit ads for own shop" on public.ads for insert with check (
+  auth.uid() = submitted_by and exists (select 1 from public.shops where id = shop_id and owner_id = auth.uid())
+);
+create policy "Owners/admins can manage all ads" on public.ads for all using (public.is_admin()) with check (public.is_admin());
+
+create index if not exists idx_ads_status on public.ads(status);
+create index if not exists idx_ads_shop_id on public.ads(shop_id);
+create index if not exists idx_ads_review_deadline on public.ads(review_deadline);
+
+-- Owner-only view joining submitter username/email + shop name, so the
+-- review queue can show exactly who bought each ad without every admin
+-- query needing its own manual join (and without exposing this to
+-- regular users via RLS, since it's owner-only).
+create or replace view public.ads_admin_view as
+select
+  a.*,
+  p.username as submitter_username,
+  p.email as submitter_email,
+  s.name as shop_name
+from public.ads a
+join public.profiles p on p.id = a.submitted_by
+join public.shops s on s.id = a.shop_id;
+
+-- Owner/admin RPC to approve/reject an ad.
+create or replace function public.owner_review_ad(
+  p_ad_id uuid,
+  p_decision text,
+  p_rejection_reason text default null,
+  p_duration_days integer default 7
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if public.current_profile_role() <> 'owner' and public.current_profile_role() <> 'admin' then
+    raise exception 'Owner/admin access required' using errcode = '42501';
+  end if;
+  if p_decision not in ('approved', 'rejected') then
+    raise exception 'Invalid decision' using errcode = '22023';
+  end if;
+
+  update public.ads
+  set
+    status = p_decision,
+    reviewed_by = auth.uid(),
+    reviewed_at = now(),
+    rejection_reason = case when p_decision = 'rejected' then p_rejection_reason else null end,
+    starts_at = case when p_decision = 'approved' then now() else null end,
+    expires_at = case when p_decision = 'approved' then now() + make_interval(days => p_duration_days) else null end
+  where id = p_ad_id;
+end;
+$$;
+
+revoke all on function public.owner_review_ad(uuid, text, text, integer) from public;
+grant execute on function public.owner_review_ad(uuid, text, text, integer) to authenticated;
+
+-- Storage bucket for ad creative images.
+insert into storage.buckets (id, name, public)
+values ('ad-images', 'ad-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public read ad images" on storage.objects;
+create policy "Public read ad images" on storage.objects for select using (bucket_id = 'ad-images');
+drop policy if exists "Sellers upload own ad images" on storage.objects;
+create policy "Sellers upload own ad images" on storage.objects for all using (
+  bucket_id = 'ad-images' and (storage.foldername(name))[1] = auth.uid()::text
+) with check (
+  bucket_id = 'ad-images' and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+-- Storage bucket for broadcast images (owner-only uploads).
+insert into storage.buckets (id, name, public)
+values ('broadcast-images', 'broadcast-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public read broadcast images" on storage.objects;
+create policy "Public read broadcast images" on storage.objects for select using (bucket_id = 'broadcast-images');
+drop policy if exists "Owner uploads broadcast images" on storage.objects;
+create policy "Owner uploads broadcast images" on storage.objects for all using (
+  bucket_id = 'broadcast-images' and public.current_profile_role() = 'owner'
+) with check (
+  bucket_id = 'broadcast-images' and public.current_profile_role() = 'owner'
+);
