@@ -128,7 +128,7 @@ export function generateReceiptPDF(data: ReceiptData): Buffer {
 
   // Payment Info
   doc.fontSize(10).font('Helvetica')
-  doc.text(`Metode Pembayaran: ${data.paymentMethod === 'midtrans' ? 'Midtrans' : 'COD'}`)
+  doc.text(`Metode Pembayaran: ${data.paymentMethod === 'gorekk' ? 'Pembayaran Online (QRIS)' : 'COD'}`)
   doc.text(`Status Pembayaran: ${data.paymentStatus}`)
 
   doc.moveDown(2)

@@ -65,22 +65,22 @@ export default function ProfilePage() {
     }
   }, [user, loadOrders])
 
-  // Automatically reconcile any order still waiting on a Midtrans
+  // Automatically reconcile any order still waiting on a Gorekk
   // payment — without this, an order can sit at "pending" forever
   // unless the buyer happens to revisit the dedicated pending-payment
   // page (which triggers the same check). This runs quietly in the
   // background whenever the order list is open.
   useEffect(() => {
-    const pendingMidtransOrders = orders.filter(
-      (o) => o.payment_method === 'midtrans' && o.payment_status === 'pending'
+    const pendingGorekkOrders = orders.filter(
+      (o) => o.payment_method === 'gorekk' && o.payment_status === 'pending'
     )
-    if (pendingMidtransOrders.length === 0) return
+    if (pendingGorekkOrders.length === 0) return
 
     let cancelled = false
     const reconcile = async () => {
-      for (const order of pendingMidtransOrders) {
+      for (const order of pendingGorekkOrders) {
         try {
-          const res = await fetch(`/api/payments/snap?orderId=${order.id}`)
+          const res = await fetch(`/api/payments/gorekk?orderId=${order.id}`)
           if (!res.ok) continue
           const data = await res.json()
           if (!cancelled && (data.status === 'paid' || data.status === 'failed' || data.status === 'expired')) {

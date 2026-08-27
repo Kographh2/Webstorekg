@@ -4,8 +4,8 @@
  */
 
 export interface PaymentConfig {
-  midtransServerKey: string
-  midtransClientKey: string
+  gorekkApiKey: string
+  gorekkStaticQr: string
   codEnabled: boolean
   minAmountForFreeShipping: number
   taxRate: number
@@ -13,8 +13,8 @@ export interface PaymentConfig {
 }
 
 export const paymentConfig: PaymentConfig = {
-  midtransServerKey: process.env.MIDTRANS_SERVER_KEY || '',
-  midtransClientKey: process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY || '',
+  gorekkApiKey: process.env.GOREKK_API_KEY || '',
+  gorekkStaticQr: process.env.GOREKK_STATIC_QR || '',
   codEnabled: process.env.NEXT_PUBLIC_COD_ENABLED !== 'false',
   minAmountForFreeShipping: 100000,
   taxRate: 0.1,
@@ -81,7 +81,7 @@ export function generateOrderId(): string {
 export function getPaymentMethodName(method: string): string {
   const methodNames: Record<string, string> = {
     cod: 'Bayar di Tempat (COD)',
-    midtrans: 'Pembayaran Online',
+    gorekk: 'Pembayaran Online',
     bank_transfer: 'Transfer Bank',
   }
   return methodNames[method] || method
@@ -163,9 +163,9 @@ export function validatePaymentData(data: {
 }
 
 /**
- * Create Midtrans snap request
+ * Create Gorekk QRIS request payload info
  */
-export interface MidtransSnapRequest {
+export interface GorekkQrisRequestInfo {
   transaction_details: {
     order_id: string
     gross_amount: number
@@ -191,12 +191,6 @@ export interface MidtransSnapRequest {
       country_code: string
     }
   }
-  item_details: Array<{
-    id: string
-    price: number
-    quantity: number
-    name: string
-  }>
   callbacks: {
     finish: string
     error: string
@@ -208,7 +202,7 @@ export interface MidtransSnapRequest {
   }
 }
 
-export function createMidtransSnapRequest(
+export function buildGorekkQrisRequest(
   orderId: string,
   amount: number,
   customer: {
@@ -219,18 +213,12 @@ export function createMidtransSnapRequest(
     city?: string
     postalCode?: string
   },
-  items: Array<{
-    id: string
-    name: string
-    price: number
-    quantity: number
-  }>,
   callbacks: {
     finish: string
     error: string
     pending: string
   }
-): MidtransSnapRequest {
+): GorekkQrisRequestInfo {
   return {
     transaction_details: {
       order_id: orderId,
@@ -259,12 +247,6 @@ export function createMidtransSnapRequest(
         },
       }),
     },
-    item_details: items.map(item => ({
-      id: item.id,
-      price: Math.round(item.price),
-      quantity: item.quantity,
-      name: item.name,
-    })),
     callbacks,
     expiry: {
       unit: 'minutes',

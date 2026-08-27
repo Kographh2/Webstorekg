@@ -13,7 +13,7 @@ export function cn(...inputs: ClassValue[]) {
  * `product.discount_price ?? product.price` in another is exactly how
  * a checkout can show one price for a line item ("Rp 150.000") while
  * charging a different, lower one for the actual subtotal/total sent
- * to Midtrans ("Rp 50.000").
+ * to Gorekk ("Rp 50.000").
  */
 export function getUnitPrice(product: { price: number; discount_price?: number | null } | null | undefined): number {
   if (!product) return 0

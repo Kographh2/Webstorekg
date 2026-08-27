@@ -28,19 +28,19 @@ export default function OrdersPage() {
   }, [user, loading, router])
 
   // Same background reconciliation as the profile page's order tab —
-  // keeps a Midtrans order from being stuck showing "Menunggu" forever
+  // keeps a Gorekk order from being stuck showing "Menunggu" forever
   // just because the buyer never revisited the dedicated pending page.
   useEffect(() => {
-    const pendingMidtransOrders = orders.filter(
-      (o) => o.payment_method === 'midtrans' && o.payment_status === 'pending'
+    const pendingGorekkOrders = orders.filter(
+      (o) => o.payment_method === 'gorekk' && o.payment_status === 'pending'
     )
-    if (pendingMidtransOrders.length === 0) return
+    if (pendingGorekkOrders.length === 0) return
 
     let cancelled = false
     const reconcile = async () => {
-      for (const order of pendingMidtransOrders) {
+      for (const order of pendingGorekkOrders) {
         try {
-          const res = await fetch(`/api/payments/snap?orderId=${order.id}`)
+          const res = await fetch(`/api/payments/gorekk?orderId=${order.id}`)
           if (!res.ok) continue
           const data = await res.json()
           if (!cancelled && (data.status === 'paid' || data.status === 'failed' || data.status === 'expired')) {
@@ -189,7 +189,7 @@ export default function OrdersPage() {
                         </div>
                       </div>
                       <div className="mt-2 text-xs text-gray-500">
-                        Metode: <span className="font-medium">{order.payment_method === 'midtrans' ? 'Midtrans' : 'COD'}</span>
+                         Metode: <span className="font-medium">{order.payment_method === 'gorekk' ? 'Pembayaran Online (QRIS)' : 'COD'}</span>
                       </div>
                     </div>
                   </div>

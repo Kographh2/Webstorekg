@@ -13,36 +13,13 @@ import { supabase } from '@/lib/supabase'
 import { formatCurrency, calculateTax, getUnitPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
-type PaymentMethod = 'cod' | 'midtrans'
-
-interface MidtransSnapResult {
-  order_id?: string
-  transaction_id?: string
-  status_code?: string
-  transaction_status?: string
-  [key: string]: unknown
-}
-
-interface MidtransSnapOptions {
-  onSuccess?: (result: MidtransSnapResult) => void
-  onPending?: (result: MidtransSnapResult) => void
-  onError?: (result: MidtransSnapResult) => void
-  onClose?: () => void
-}
-
-declare global {
-  interface Window {
-    snap: {
-      pay: (token: string, options: MidtransSnapOptions) => void
-    }
-  }
-}
+type PaymentMethod = 'cod' | 'gorekk'
 
 const steps = ['Alamat', 'Pembayaran', 'Konfirmasi']
 
 export default function CheckoutPage() {
   const [step, setStep] = useState(1)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('midtrans')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('gorekk')
   const [loading, setLoading] = useState(false)
   const [shippingAddress, setShippingAddress] = useState({
     full_name: '',
@@ -64,41 +41,11 @@ export default function CheckoutPage() {
   const shipping = requiredShipping && totalAmount > 100000 ? 0 : requiredShipping ? 15000 : 0
   const finalTotal = totalAmount + tax + shipping
 
-  // Digital-only orders can't be paid COD (nothing to collect cash on
-  // delivery for), so force Midtrans and never show COD as an option.
   useEffect(() => {
     if (isDigitalOrder && paymentMethod === 'cod') {
-      setPaymentMethod('midtrans')
+      setPaymentMethod('gorekk')
     }
   }, [isDigitalOrder, paymentMethod])
-
-  // Load Midtrans Snap library. The client key + correct snap.js URL
-  // (sandbox vs production) are fetched from our own API instead of
-  // relying on NEXT_PUBLIC_MIDTRANS_CLIENT_KEY being inlined at build
-  // time — see src/app/api/payments/client-config/route.ts for why.
-  useEffect(() => {
-    let script: HTMLScriptElement | null = null
-
-    fetch('/api/payments/client-config')
-      .then((res) => res.json())
-      .then((config) => {
-        if (!config.clientKey) {
-          console.error('Midtrans client configuration is missing:', config.error)
-          return
-        }
-        script = document.createElement('script')
-        script.src = config.snapJsUrl
-        script.setAttribute('data-client-key', config.clientKey)
-        document.body.appendChild(script)
-      })
-      .catch((err) => console.error('Failed to load Midtrans client config:', err))
-
-    return () => {
-      if (script && document.body.contains(script)) {
-        document.body.removeChild(script)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     if (!user) {
@@ -178,12 +125,6 @@ export default function CheckoutPage() {
             postal_code: '',
           }
 
-      // Create order in database.
-      // COD orders start life at 'processing' (not 'pending') — there
-      // is no payment gateway step to wait on for COD, so the seller
-      // sees it straight away as an actionable order to prepare. Midtrans
-      // orders start 'pending'/'pending' and move to 'paid' automatically
-      // once payment clears (webhook + status polling handle that).
       const { data: insertedOrder, error: orderError } = await (supabase as any)
         .from('orders')
         .insert({
@@ -233,37 +174,7 @@ export default function CheckoutPage() {
         return
       }
 
-      // Midtrans requires item_details to sum to EXACTLY gross_amount.
-      // Since gross_amount includes tax (and shipping for physical
-      // orders), those need their own line items too — otherwise the
-      // backend's payload validation correctly rejects the mismatch
-      // (as it should: a silent mismatch there is exactly the kind of
-      // bug that causes wrong charges).
-      const midtransItemDetails = orderItemsPayload.map((item) => ({
-        id: item.product_id,
-        price: item.price,
-        quantity: item.quantity,
-        name: item.product_name,
-      }))
-
-      if (tax > 0) {
-        midtransItemDetails.push({
-          id: 'tax',
-          price: tax,
-          quantity: 1,
-          name: 'Pajak (5%)',
-        })
-      }
-      if (shipping > 0) {
-        midtransItemDetails.push({
-          id: 'shipping',
-          price: shipping,
-          quantity: 1,
-          name: 'Ongkos Kirim',
-        })
-      }
-
-      const paymentResponse = await fetch('/api/payments/snap', {
+      const paymentResponse = await fetch('/api/payments/gorekk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,7 +184,12 @@ export default function CheckoutPage() {
           phone: normalizedShippingAddress.phone,
           customerName: normalizedShippingAddress.full_name,
           paymentMethod,
-          itemDetails: midtransItemDetails,
+          itemDetails: orderItemsPayload.map((item) => ({
+            id: item.product_id,
+            price: item.price,
+            quantity: item.quantity,
+            name: item.product_name,
+          })),
           shippingAddress: requiredShipping ? normalizedShippingAddress : undefined,
         }),
       })
@@ -281,42 +197,16 @@ export default function CheckoutPage() {
       const paymentData = await paymentResponse.json()
 
       if (!paymentResponse.ok) {
-        console.error('Payment error:', paymentData)
-        // A config-related error is our fault, not something a retry
-        // fixes — tell the user plainly instead of implying they did
-        // something wrong.
-        if (paymentData.code === 'MIDTRANS_CONFIG_MISSING' || paymentData.code === 'MIDTRANS_AUTH_ERROR') {
+        if (paymentData.code === 'GOREKK_CONFIG_MISSING') {
           toast.error('Pembayaran online sedang bermasalah di sisi kami. Silakan coba lagi nanti atau gunakan metode lain.')
-        } else if (paymentData.code === 'MIDTRANS_REQUEST_REJECTED' && paymentData.details) {
-          const detailText = Array.isArray(paymentData.details) ? paymentData.details.join('; ') : String(paymentData.details)
-          toast.error(`Ditolak Midtrans: ${detailText}`)
         } else {
           toast.error(paymentData.error || 'Gagal memproses pembayaran')
         }
         return
       }
 
-      if (paymentData.token && window.snap) {
-        window.snap.pay(paymentData.token, {
-          onSuccess: (result) => {
-            clearCart()
-            router.push(`/payment-status/success?order_id=${orderId}&transaction_id=${result.transaction_id ?? ''}`)
-          },
-          onPending: (result) => {
-            clearCart()
-            router.push(`/payment-status/pending?order_id=${orderId}&transaction_id=${result.transaction_id ?? ''}`)
-          },
-          onError: (result) => {
-            router.push(`/payment-status/failed?order_id=${orderId}&reason=${result.status_code ?? 'unknown'}`)
-          },
-          onClose: () => {
-            toast.error('Pembayaran belum selesai. Anda dapat melanjutkan dari halaman status pesanan.')
-            router.push(`/payment-status/pending?order_id=${orderId}`)
-          },
-        })
-      } else {
-        toast.error('Gagal memproses pembayaran. Silakan coba lagi.')
-      }
+      clearCart()
+      router.push(`/payment-status/pending?order_id=${orderId}&invoice_id=${paymentData.invoiceId}`)
     } catch (error) {
       console.error('Checkout error:', error)
       toast.error('Terjadi kesalahan saat checkout')
@@ -339,9 +229,7 @@ export default function CheckoutPage() {
           <h1 className="text-xl font-bold text-gray-900">Checkout</h1>
         </div>
 
-        {/* Order type banner — makes it unmistakable whether this is a
-            digital or physical order, since the flow differs (no
-            address/COD for digital). */}
+        {/* Order type banner */}
         <div className={`flex items-center gap-3 rounded-2xl p-4 mb-6 border ${
           isDigitalOrder
             ? 'bg-primary-50 border-primary-100'
@@ -513,22 +401,22 @@ export default function CheckoutPage() {
 
                 <label
                   className={`block rounded-2xl p-4 cursor-pointer border-2 transition-colors ${
-                    paymentMethod === 'midtrans' ? 'border-primary-600 bg-primary-50' : 'border-gray-200'
+                    paymentMethod === 'gorekk' ? 'border-primary-600 bg-primary-50' : 'border-gray-200'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <input
                       type="radio"
                       name="payment"
-                      value="midtrans"
-                      checked={paymentMethod === 'midtrans'}
+                      value="gorekk"
+                      checked={paymentMethod === 'gorekk'}
                       onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                       className="accent-primary-600 w-4 h-4"
                     />
                     <ShieldCheck size={18} className="text-gray-500" />
                     <div>
-                      <span className="font-semibold text-sm text-gray-900">Pembayaran Online</span>
-                      <p className="text-xs text-gray-500 mt-0.5">Transfer bank, e-wallet, QRIS, atau kartu — diproses otomatis & real-time</p>
+                      <span className="font-semibold text-sm text-gray-900">Pembayaran Online (QRIS)</span>
+                      <p className="text-xs text-gray-500 mt-0.5">Scan QR code dengan GoPay, e-wallet, atau aplikasi bank</p>
                     </div>
                   </div>
                 </label>
@@ -630,7 +518,7 @@ export default function CheckoutPage() {
               <div className="bg-gray-50 rounded-xl p-3 mb-5">
                 <p className="text-xs text-gray-500">Metode Pembayaran</p>
                 <p className="font-semibold text-sm text-gray-900">
-                  {paymentMethod === 'cod' ? 'Bayar di Tempat (COD)' : 'Pembayaran Online'}
+                  {paymentMethod === 'cod' ? 'Bayar di Tempat (COD)' : 'Pembayaran Online (QRIS)'}
                 </p>
               </div>
 

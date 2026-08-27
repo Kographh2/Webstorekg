@@ -10,7 +10,7 @@ interface PaymentStatus {
 
 /**
  * Polls the payment status API for a given order. The API itself checks
- * Midtrans directly if the webhook hasn't updated the order yet, so this
+ * Gorekk directly if the webhook hasn't updated the order yet, so this
  * is a reliable fallback even in local dev where webhooks can't reach us.
  */
 export function usePaymentStatus(orderId: string | null, intervalMs: number = 5000) {
@@ -27,7 +27,7 @@ export function usePaymentStatus(orderId: string | null, intervalMs: number = 50
     try {
       setError(null)
 
-      const response = await fetch(`/api/payments/snap?orderId=${orderId}`)
+      const response = await fetch(`/api/payments/gorekk?orderId=${orderId}`)
       const data = await response.json()
 
       if (!response.ok) {

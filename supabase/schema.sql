@@ -120,7 +120,7 @@ create table public.orders (
   seller_id uuid references public.profiles(id) on delete cascade not null,
   shop_id uuid references public.shops(id) on delete cascade not null,
   status text not null default 'pending' check (status in ('pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled')),
-  payment_method text not null default 'cod' check (payment_method in ('cod', 'midtrans')),
+  payment_method text not null default 'cod' check (payment_method in ('cod', 'gorekk')),
   payment_status text not null default 'pending' check (payment_status in ('pending', 'paid', 'failed', 'expired')),
   subtotal numeric(12,2) not null,
   tax_amount numeric(12,2) default 0,

@@ -1,8 +1,8 @@
 const requiredEnvVars = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-  'MIDTRANS_SERVER_KEY',
-  'MIDTRANS_CLIENT_KEY',
+  'GOREKK_API_KEY',
+  'GOREKK_STATIC_QR',
 ]
 
 const missingEnvVars = requiredEnvVars.filter(

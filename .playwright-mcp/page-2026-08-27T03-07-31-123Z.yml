@@ -1,0 +1,482 @@
+- generic [ref=e2]:
+  - dialog "Persetujuan cookie" [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Kami menghargai privasi Anda" [level=3] [ref=e5]
+      - paragraph [ref=e6]: Situs web ini menyimpan cookie di perangkat Anda. Cookie ini dipakai untuk mengumpulkan informasi tentang bagaimana Anda berinteraksi dengan situs kami dan memungkinkan kami untuk mengingat Anda. Kami memakai informasi ini untuk meningkatkan dan menyesuaikan pengalaman penjelajahan Anda serta untuk analitik dan metrik pengunjung.
+      - generic [ref=e7]:
+        - button "Terima Semua Cookie" [ref=e8] [cursor=pointer]
+        - button "Kelola Cookie" [ref=e9] [cursor=pointer]
+  - generic [ref=e10]:
+    - generic:
+      - banner:
+        - navigation [ref=e12]:
+          - link "GOREKK" [ref=e13] [cursor=pointer]:
+            - /url: /
+          - generic [ref=e18]:
+            - link "Beranda" [ref=e19] [cursor=pointer]:
+              - /url: /
+            - link "Harga" [ref=e20] [cursor=pointer]:
+              - /url: /pricing
+            - link "Blog" [ref=e21] [cursor=pointer]:
+              - /url: /blog
+            - link "FAQ" [ref=e22] [cursor=pointer]:
+              - /url: /faq
+            - link "Status" [ref=e23] [cursor=pointer]:
+              - /url: /status
+            - link "Terms" [ref=e24] [cursor=pointer]:
+              - /url: /terms
+          - generic [ref=e25]:
+            - link "Masuk" [ref=e26] [cursor=pointer]:
+              - /url: /login
+            - link "Daftar" [ref=e27] [cursor=pointer]:
+              - /url: /register
+    - main [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]: Developer
+        - heading "Dokumentasi API" [level=1] [ref=e31]
+        - paragraph [ref=e32]: Referensi lengkap REST API GOREKK Manager — parameter, contoh kode, dan contoh respons untuk tiap endpoint.
+        - link "Buka API Console untuk tes langsung →" [ref=e33] [cursor=pointer]:
+          - /url: /dashboard/api
+      - generic [ref=e34]:
+        - complementary "Navigasi endpoint" [ref=e35]:
+          - generic [ref=e36]:
+            - generic [ref=e37]: Daftar Isi
+            - navigation [ref=e38]:
+              - button "Pendahuluan" [ref=e39] [cursor=pointer]
+              - button "Autentikasi & Kuota" [ref=e40] [cursor=pointer]
+              - button "Saldo Realtime" [ref=e41] [cursor=pointer]
+              - button "Profil Merchant" [ref=e43] [cursor=pointer]
+              - button "Histori Transaksi" [ref=e45] [cursor=pointer]
+              - button "Transaksi Lokal DB" [ref=e47] [cursor=pointer]
+              - button "Data Payout" [ref=e49] [cursor=pointer]
+              - button "Histori Saldo" [ref=e51] [cursor=pointer]
+              - button "Buat QRIS Dinamis" [ref=e53] [cursor=pointer]
+              - button "Cek Status Invoice" [ref=e55] [cursor=pointer]
+              - button "Decode QR String" [ref=e57] [cursor=pointer]
+              - button "Extract QR dari Gambar" [ref=e59] [cursor=pointer]
+              - button "Kode Error Umum" [ref=e61] [cursor=pointer]
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - heading "Pendahuluan" [level=2] [ref=e64]
+            - paragraph [ref=e65]: GOREKK Manager menyediakan REST API untuk mengambil data saldo, transaksi, dan membuat QRIS dinamis secara terprogram dari sistem/aplikasi kamu sendiri. Semua endpoint mengembalikan JSON.
+            - paragraph [ref=e66]: "Base URL untuk semua endpoint di bawah:"
+            - generic [ref=e67]: https://www.gorekk.web.id/api/v1/...
+          - generic [ref=e68]:
+            - heading "Autentikasi & Kuota" [level=2] [ref=e69]
+            - paragraph [ref=e70]: "Setiap request wajib menyertakan API Key milik akun kamu (bisa dibuat lewat halaman API Console setelah login), dikirim lewat salah satu cara berikut:"
+            - generic [ref=e71]:
+              - generic [ref=e72]:
+                - generic [ref=e73]: Lewat Header (disarankan)
+                - generic [ref=e74]: "X-API-Key: AK-xxxxxxxxxxxxxxxx"
+              - generic [ref=e75]:
+                - generic [ref=e76]: Atau query parameter
+                - generic [ref=e77]: GET /api/v1/balance?api_key=AK-xxxxxxxxxxxxxxxx
+            - paragraph [ref=e78]:
+              - text: Tiap request sukses maupun gagal masuk hitungan kuota harian sesuai plan akun kamu. Kuota di-reset otomatis tiap hari. Cek sisa kuota kamu langsung dari halaman
+              - link "API Console" [ref=e79] [cursor=pointer]:
+                - /url: /dashboard/api
+              - text: setelah login.
+          - generic [ref=e80]:
+            - heading "User" [level=2] [ref=e81]
+            - generic [ref=e82]:
+              - generic [ref=e83]:
+                - generic [ref=e84]: GET
+                - code [ref=e85]: /api/v1/balance
+              - heading "Saldo Realtime" [level=3] [ref=e86]
+              - paragraph [ref=e87]: Ambil saldo GoPay merchant secara realtime dari Gopay Merchant.
+              - generic [ref=e88]: CONTOH REQUEST
+              - generic [ref=e89]:
+                - button "cURL" [ref=e90] [cursor=pointer]
+                - button "JavaScript" [ref=e91] [cursor=pointer]
+                - button "PHP" [ref=e92] [cursor=pointer]
+                - button "Python" [ref=e93] [cursor=pointer]
+              - generic [ref=e94]:
+                - button "Salin" [ref=e95] [cursor=pointer]
+                - generic [ref=e96]: "curl -X GET \"https://www.gorekk.web.id/api/v1/balance\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e97]: CONTOH RESPONS (200 OK)
+              - generic [ref=e98]:
+                - button "Salin" [ref=e99] [cursor=pointer]
+                - generic [ref=e100]: "{ \"success\": true, \"balance\": 1250000, \"pending_balance\": 0, \"currency\": \"IDR\", \"synced_at\": \"2026-08-19T08:12:00+07:00\" }"
+            - generic [ref=e101]:
+              - generic [ref=e102]:
+                - generic [ref=e103]: GET
+                - code [ref=e104]: /api/v1/me
+              - heading "Profil Merchant" [level=3] [ref=e105]
+              - paragraph [ref=e106]: Ambil data profil merchant dari Gopay Merchant.
+              - generic [ref=e107]: PARAMETER
+              - table [ref=e108]:
+                - rowgroup [ref=e109]:
+                  - row [ref=e110]:
+                    - columnheader "Nama" [ref=e111]
+                    - columnheader "Wajib" [ref=e112]
+                    - columnheader "Keterangan" [ref=e113]
+                - rowgroup [ref=e114]:
+                  - row [ref=e115]:
+                    - cell "token" [ref=e116]
+                    - cell "Opsional" [ref=e117]
+                    - 'cell "Token (opsional) — contoh: eyJ..." [ref=e118]':
+                      - text: Token (opsional)
+                      - generic [ref=e119]: "— contoh: eyJ..."
+              - generic [ref=e120]: CONTOH REQUEST
+              - generic [ref=e121]:
+                - button "cURL" [ref=e122] [cursor=pointer]
+                - button "JavaScript" [ref=e123] [cursor=pointer]
+                - button "PHP" [ref=e124] [cursor=pointer]
+                - button "Python" [ref=e125] [cursor=pointer]
+              - generic [ref=e126]:
+                - button "Salin" [ref=e127] [cursor=pointer]
+                - generic [ref=e128]: "curl -X GET \"https://www.gorekk.web.id/api/v1/me\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e129]: CONTOH RESPONS (200 OK)
+              - generic [ref=e130]:
+                - button "Salin" [ref=e131] [cursor=pointer]
+                - generic [ref=e132]: "{ \"success\": true, \"merchant_id\": \"G413988063\", \"merchant_name\": \"Contoh Toko Kamu\", \"phone\": \"+62812xxxxxxx\", \"email\": \"merchant@email.com\" }"
+          - generic [ref=e133]:
+            - heading "Transaksi" [level=2] [ref=e134]
+            - generic [ref=e135]:
+              - generic [ref=e136]:
+                - generic [ref=e137]: GET
+                - code [ref=e138]: /api/v1/history
+              - heading "Histori Transaksi" [level=3] [ref=e139]
+              - paragraph [ref=e140]: Transaksi QRIS dalam rentang tanggal. Kosongkan untuk 7 hari terakhir.
+              - generic [ref=e141]: PARAMETER
+              - table [ref=e142]:
+                - rowgroup [ref=e143]:
+                  - row [ref=e144]:
+                    - columnheader "Nama" [ref=e145]
+                    - columnheader "Wajib" [ref=e146]
+                    - columnheader "Keterangan" [ref=e147]
+                - rowgroup [ref=e148]:
+                  - row [ref=e149]:
+                    - cell "start_time" [ref=e150]
+                    - cell "Opsional" [ref=e151]
+                    - cell "Dari Tanggal" [ref=e152]
+                  - row [ref=e153]:
+                    - cell "end_time" [ref=e154]
+                    - cell "Opsional" [ref=e155]
+                    - cell "Sampai Tanggal" [ref=e156]
+              - generic [ref=e157]: CONTOH REQUEST
+              - generic [ref=e158]:
+                - button "cURL" [ref=e159] [cursor=pointer]
+                - button "JavaScript" [ref=e160] [cursor=pointer]
+                - button "PHP" [ref=e161] [cursor=pointer]
+                - button "Python" [ref=e162] [cursor=pointer]
+              - generic [ref=e163]:
+                - button "Salin" [ref=e164] [cursor=pointer]
+                - generic [ref=e165]: "curl -X GET \"https://www.gorekk.web.id/api/v1/history\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e166]: CONTOH RESPONS (200 OK)
+              - generic [ref=e167]:
+                - button "Salin" [ref=e168] [cursor=pointer]
+                - generic [ref=e169]: "{ \"success\": true, \"count\": 2, \"transactions\": [ { \"reference_id\": \"TX20260819001\", \"amount\": 25000, \"status\": \"success\", \"tx_time\": \"2026-08-19T07:40:00+07:00\" }, { \"reference_id\": \"TX20260818009\", \"amount\": 100000, \"status\": \"success\", \"tx_time\": \"2026-08-18T19:05:00+07:00\" } ] }"
+            - generic [ref=e170]:
+              - generic [ref=e171]:
+                - generic [ref=e172]: GET
+                - code [ref=e173]: /api/v1/transactions-local
+              - heading "Transaksi Lokal DB" [level=3] [ref=e174]
+              - paragraph [ref=e175]: Transaksi yang sudah tersimpan di database lokal server.
+              - generic [ref=e176]: PARAMETER
+              - table [ref=e177]:
+                - rowgroup [ref=e178]:
+                  - row [ref=e179]:
+                    - columnheader "Nama" [ref=e180]
+                    - columnheader "Wajib" [ref=e181]
+                    - columnheader "Keterangan" [ref=e182]
+                - rowgroup [ref=e183]:
+                  - row [ref=e184]:
+                    - cell "limit" [ref=e185]
+                    - cell "Opsional" [ref=e186]
+                    - 'cell "Jumlah (maks 200) — contoh: 50" [ref=e187]':
+                      - text: Jumlah (maks 200)
+                      - generic [ref=e188]: "— contoh: 50"
+              - generic [ref=e189]: CONTOH REQUEST
+              - generic [ref=e190]:
+                - button "cURL" [ref=e191] [cursor=pointer]
+                - button "JavaScript" [ref=e192] [cursor=pointer]
+                - button "PHP" [ref=e193] [cursor=pointer]
+                - button "Python" [ref=e194] [cursor=pointer]
+              - generic [ref=e195]:
+                - button "Salin" [ref=e196] [cursor=pointer]
+                - generic [ref=e197]: "curl -X GET \"https://www.gorekk.web.id/api/v1/transactions-local\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e198]: CONTOH RESPONS (200 OK)
+              - generic [ref=e199]:
+                - button "Salin" [ref=e200] [cursor=pointer]
+                - generic [ref=e201]: "{ \"success\": true, \"count\": 1, \"transactions\": [ { \"id\": \"a1b2c3\", \"amount\": 25000, \"status\": \"success\", \"merchant_name\": \"Contoh Toko Kamu\", \"synced_at\": \"2026-08-19T07:40:05+07:00\" } ] }"
+            - generic [ref=e202]:
+              - generic [ref=e203]:
+                - generic [ref=e204]: GET
+                - code [ref=e205]: /api/v1/payouts
+              - heading "Data Payout" [level=3] [ref=e206]
+              - paragraph [ref=e207]: Riwayat pencairan saldo GoPay ke rekening bank.
+              - generic [ref=e208]: CONTOH REQUEST
+              - generic [ref=e209]:
+                - button "cURL" [ref=e210] [cursor=pointer]
+                - button "JavaScript" [ref=e211] [cursor=pointer]
+                - button "PHP" [ref=e212] [cursor=pointer]
+                - button "Python" [ref=e213] [cursor=pointer]
+              - generic [ref=e214]:
+                - button "Salin" [ref=e215] [cursor=pointer]
+                - generic [ref=e216]: "curl -X GET \"https://www.gorekk.web.id/api/v1/payouts\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e217]: CONTOH RESPONS (200 OK)
+              - generic [ref=e218]:
+                - button "Salin" [ref=e219] [cursor=pointer]
+                - generic [ref=e220]: "{ \"success\": true, \"count\": 1, \"payouts\": [ { \"id\": \"P74c5931\", \"amount\": 500000, \"status\": \"PAID\", \"created_at\": \"2026-08-15T10:09:00+07:00\" } ] }"
+            - generic [ref=e221]:
+              - generic [ref=e222]:
+                - generic [ref=e223]: GET
+                - code [ref=e224]: /api/v1/balance-history
+              - heading "Histori Saldo" [level=3] [ref=e225]
+              - paragraph [ref=e226]: Riwayat pendapatan harian dan snapshot saldo.
+              - generic [ref=e227]: PARAMETER
+              - table [ref=e228]:
+                - rowgroup [ref=e229]:
+                  - row [ref=e230]:
+                    - columnheader "Nama" [ref=e231]
+                    - columnheader "Wajib" [ref=e232]
+                    - columnheader "Keterangan" [ref=e233]
+                - rowgroup [ref=e234]:
+                  - row [ref=e235]:
+                    - cell "days" [ref=e236]
+                    - cell "Opsional" [ref=e237]
+                    - 'cell "Jumlah Hari (maks 90) — contoh: 30" [ref=e238]':
+                      - text: Jumlah Hari (maks 90)
+                      - generic [ref=e239]: "— contoh: 30"
+              - generic [ref=e240]: CONTOH REQUEST
+              - generic [ref=e241]:
+                - button "cURL" [ref=e242] [cursor=pointer]
+                - button "JavaScript" [ref=e243] [cursor=pointer]
+                - button "PHP" [ref=e244] [cursor=pointer]
+                - button "Python" [ref=e245] [cursor=pointer]
+              - generic [ref=e246]:
+                - button "Salin" [ref=e247] [cursor=pointer]
+                - generic [ref=e248]: "curl -X GET \"https://www.gorekk.web.id/api/v1/balance-history\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e249]: CONTOH RESPONS (200 OK)
+              - generic [ref=e250]:
+                - button "Salin" [ref=e251] [cursor=pointer]
+                - generic [ref=e252]: "{ \"success\": true, \"days\": [ { \"date\": \"2026-08-18\", \"revenue\": 125000, \"closing_balance\": 1250000 }, { \"date\": \"2026-08-17\", \"revenue\": 40000, \"closing_balance\": 1125000 } ] }"
+          - generic [ref=e253]:
+            - heading "QRIS" [level=2] [ref=e254]
+            - generic [ref=e255]:
+              - generic [ref=e256]:
+                - generic [ref=e257]: GET
+                - code [ref=e258]: /api/v1/qris/create
+              - heading "Buat QRIS Dinamis" [level=3] [ref=e259]
+              - paragraph [ref=e260]: Generate QR Code dinamis dengan nominal tertentu dari QR statis merchant. Mendukung webhook, kedaluwarsa custom, dan order_id. Pakai gambar di image_url buat ditampilkan ke pembeli — field qr_string mentah sengaja nggak dikirim lewat API Key publik ini, biar QR yang beredar selalu yang resmi (ada background & branding), bukan versi polos hasil generate ulang sendiri.
+              - generic [ref=e261]: PARAMETER
+              - table [ref=e262]:
+                - rowgroup [ref=e263]:
+                  - row [ref=e264]:
+                    - columnheader "Nama" [ref=e265]
+                    - columnheader "Wajib" [ref=e266]
+                    - columnheader "Keterangan" [ref=e267]
+                - rowgroup [ref=e268]:
+                  - row [ref=e269]:
+                    - cell "amount" [ref=e270]
+                    - cell "Wajib" [ref=e271]
+                    - 'cell "Nominal (Rupiah) — contoh: 50000" [ref=e272]':
+                      - text: Nominal (Rupiah)
+                      - generic [ref=e273]: "— contoh: 50000"
+                  - row [ref=e274]:
+                    - cell "static_qr" [ref=e275]
+                    - cell "Wajib" [ref=e276]
+                    - 'cell "Static QR String — contoh: 000201010211..." [ref=e277]':
+                      - text: Static QR String
+                      - generic [ref=e278]: "— contoh: 000201010211..."
+                  - row [ref=e279]:
+                    - cell "order_id" [ref=e280]
+                    - cell "Opsional" [ref=e281]
+                    - 'cell "Order ID (opsional) — contoh: ORDER-123" [ref=e282]':
+                      - text: Order ID (opsional)
+                      - generic [ref=e283]: "— contoh: ORDER-123"
+                  - row [ref=e284]:
+                    - cell "callback_url" [ref=e285]
+                    - cell "Opsional" [ref=e286]
+                    - 'cell "Webhook Callback URL (opsional) — contoh: https://situskamu.com/webhook" [ref=e287]':
+                      - text: Webhook Callback URL (opsional)
+                      - generic [ref=e288]: "— contoh: https://situskamu.com/webhook"
+                  - row [ref=e289]:
+                    - cell "expires_in" [ref=e290]
+                    - cell "Opsional" [ref=e291]
+                    - 'cell "Kedaluwarsa dalam detik (opsional) — contoh: 600" [ref=e292]':
+                      - text: Kedaluwarsa dalam detik (opsional)
+                      - generic [ref=e293]: "— contoh: 600"
+                  - row [ref=e294]:
+                    - cell "unique_amount" [ref=e295]
+                    - cell "Opsional" [ref=e296]
+                    - 'cell "Nominal unik untuk matching (true/false, opsional) — contoh: false" [ref=e297]':
+                      - text: Nominal unik untuk matching (true/false, opsional)
+                      - generic [ref=e298]: "— contoh: false"
+              - generic [ref=e299]: CONTOH REQUEST
+              - generic [ref=e300]:
+                - button "cURL" [ref=e301] [cursor=pointer]
+                - button "JavaScript" [ref=e302] [cursor=pointer]
+                - button "PHP" [ref=e303] [cursor=pointer]
+                - button "Python" [ref=e304] [cursor=pointer]
+              - generic [ref=e305]:
+                - button "Salin" [ref=e306] [cursor=pointer]
+                - generic [ref=e307]: "curl -X GET \"https://www.gorekk.web.id/api/v1/qris/create?amount=50000&static_qr=000201010211...\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e308]: CONTOH RESPONS (200 OK)
+              - generic [ref=e309]:
+                - button "Salin" [ref=e310] [cursor=pointer]
+                - generic [ref=e311]: "{ \"success\": true, \"invoice_id\": \"inv_9a8b7c\", \"image_url\": \"https://gorekk.web.id/qris-img/9a8b7c.png\", \"amount\": 50000, \"expires_at\": \"2026-08-19T08:22:00+07:00\", \"order_id\": \"ORDER-123\" }"
+            - generic [ref=e312]:
+              - generic [ref=e313]:
+                - generic [ref=e314]: GET
+                - code [ref=e315]: /api/v1/qris/invoice
+              - heading "Cek Status Invoice" [level=3] [ref=e316]
+              - paragraph [ref=e317]: Cek status pembayaran berdasarkan invoice_id dari response "Buat QRIS Dinamis". Nunggu (long-poll) sampai lunas maksimal beberapa detik sebelum balas — durasi tunggu ikut plan kamu — biar nggak perlu polling berkali-kali dari sisi kamu.
+              - generic [ref=e318]: PARAMETER
+              - table [ref=e319]:
+                - rowgroup [ref=e320]:
+                  - row [ref=e321]:
+                    - columnheader "Nama" [ref=e322]
+                    - columnheader "Wajib" [ref=e323]
+                    - columnheader "Keterangan" [ref=e324]
+                - rowgroup [ref=e325]:
+                  - row [ref=e326]:
+                    - cell "invoice_id" [ref=e327]
+                    - cell "Wajib" [ref=e328]
+                    - 'cell "Invoice ID — contoh: dari response qris/create" [ref=e329]':
+                      - text: Invoice ID
+                      - generic [ref=e330]: "— contoh: dari response qris/create"
+              - generic [ref=e331]: CONTOH REQUEST
+              - generic [ref=e332]:
+                - button "cURL" [ref=e333] [cursor=pointer]
+                - button "JavaScript" [ref=e334] [cursor=pointer]
+                - button "PHP" [ref=e335] [cursor=pointer]
+                - button "Python" [ref=e336] [cursor=pointer]
+              - generic [ref=e337]:
+                - button "Salin" [ref=e338] [cursor=pointer]
+                - generic [ref=e339]: "curl -X GET \"https://www.gorekk.web.id/api/v1/qris/invoice?invoice_id=dari%20response%20qris%2Fcreate\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e340]: CONTOH RESPONS (200 OK)
+              - generic [ref=e341]:
+                - button "Salin" [ref=e342] [cursor=pointer]
+                - generic [ref=e343]: "{ \"success\": true, \"invoice_id\": \"inv_9a8b7c\", \"status\": \"paid\", \"amount\": 50000, \"paid_at\": \"2026-08-19T08:13:40+07:00\" }"
+            - generic [ref=e344]:
+              - generic [ref=e345]:
+                - generic [ref=e346]: GET
+                - code [ref=e347]: /api/v1/qris/decode
+              - heading "Decode QR String" [level=3] [ref=e348]
+              - paragraph [ref=e349]: Parse QR String QRIS menjadi komponen yang mudah dibaca manusia, termasuk breakdown TLV mentah per-tag.
+              - generic [ref=e350]: PARAMETER
+              - table [ref=e351]:
+                - rowgroup [ref=e352]:
+                  - row [ref=e353]:
+                    - columnheader "Nama" [ref=e354]
+                    - columnheader "Wajib" [ref=e355]
+                    - columnheader "Keterangan" [ref=e356]
+                - rowgroup [ref=e357]:
+                  - row [ref=e358]:
+                    - cell "qr_string" [ref=e359]
+                    - cell "Wajib" [ref=e360]
+                    - 'cell "QR String — contoh: 000201010211..." [ref=e361]':
+                      - text: QR String
+                      - generic [ref=e362]: "— contoh: 000201010211..."
+              - generic [ref=e363]: CONTOH REQUEST
+              - generic [ref=e364]:
+                - button "cURL" [ref=e365] [cursor=pointer]
+                - button "JavaScript" [ref=e366] [cursor=pointer]
+                - button "PHP" [ref=e367] [cursor=pointer]
+                - button "Python" [ref=e368] [cursor=pointer]
+              - generic [ref=e369]:
+                - button "Salin" [ref=e370] [cursor=pointer]
+                - generic [ref=e371]: "curl -X GET \"https://www.gorekk.web.id/api/v1/qris/decode?qr_string=000201010211...\" \\ -H \"X-API-Key: YOUR-API-KEY\""
+              - generic [ref=e372]: CONTOH RESPONS (200 OK)
+              - generic [ref=e373]:
+                - button "Salin" [ref=e374] [cursor=pointer]
+                - generic [ref=e375]: "{ \"success\": true, \"merchant_name\": \"CONTOH TOKO KAMU\", \"merchant_city\": \"JAKARTA\", \"is_static\": true, \"tags\": { \"52\": \"5411\", \"00\": \"01\" } }"
+            - generic [ref=e376]:
+              - generic [ref=e377]:
+                - generic [ref=e378]: POST
+                - code [ref=e379]: /api/v1/qris/extract
+              - heading "Extract QR dari Gambar" [level=3] [ref=e380]
+              - paragraph [ref=e381]: Upload foto atau screenshot QRIS, sistem akan mengekstrak QR String secara otomatis.
+              - generic [ref=e382]: CONTOH REQUEST
+              - generic [ref=e383]:
+                - button "cURL" [ref=e384] [cursor=pointer]
+                - button "JavaScript" [ref=e385] [cursor=pointer]
+                - button "PHP" [ref=e386] [cursor=pointer]
+                - button "Python" [ref=e387] [cursor=pointer]
+              - generic [ref=e388]:
+                - button "Salin" [ref=e389] [cursor=pointer]
+                - generic [ref=e390]: "curl -X POST \"https://www.gorekk.web.id/api/v1/qris/extract\" \\ -H \"X-API-Key: YOUR-API-KEY\" \\ --data-binary @foto-qris.png"
+              - generic [ref=e391]: CONTOH RESPONS (200 OK)
+              - generic [ref=e392]:
+                - button "Salin" [ref=e393] [cursor=pointer]
+                - generic [ref=e394]: "{ \"success\": true, \"qr_string\": \"00020101021126...6304A1B2\", \"is_static\": true }"
+          - generic [ref=e395]:
+            - heading "Kode Error Umum" [level=2] [ref=e396]
+            - paragraph [ref=e397]:
+              - text: Kalau request gagal, respons akan berbentuk
+              - code [ref=e398]: "{ \"success\": false, \"error\": \"...\" }"
+              - text: "dengan salah satu status HTTP berikut:"
+            - table [ref=e399]:
+              - rowgroup [ref=e400]:
+                - row [ref=e401]:
+                  - columnheader "Status" [ref=e402]
+                  - columnheader "Arti" [ref=e403]
+              - rowgroup [ref=e404]:
+                - row [ref=e405]:
+                  - cell "400" [ref=e406]
+                  - cell "Parameter wajib tidak lengkap atau formatnya salah" [ref=e407]
+                - row [ref=e408]:
+                  - cell "401" [ref=e409]
+                  - cell "API Key tidak ada, salah, atau sudah dicabut" [ref=e410]
+                - row [ref=e411]:
+                  - cell "403" [ref=e412]
+                  - cell "Akun tidak punya akses ke endpoint ini (mis. fitur khusus plan tertentu), atau akun GoPay belum terhubung" [ref=e413]
+                - row [ref=e414]:
+                  - cell "404" [ref=e415]
+                  - cell "Data yang diminta tidak ditemukan (mis. invoice_id salah)" [ref=e416]
+                - row [ref=e417]:
+                  - cell "429" [ref=e418]
+                  - cell "Kuota harian API sudah habis — tunggu sampai reset atau upgrade plan" [ref=e419]
+                - row [ref=e420]:
+                  - cell "500" [ref=e421]
+                  - cell "Terjadi kesalahan di server kami — coba lagi, atau hubungi kami kalau berulang" [ref=e422]
+          - generic [ref=e424]:
+            - heading "Butuh sesuatu yang tidak tercakup di sini?" [level=3] [ref=e425]
+            - paragraph [ref=e426]: Endpoint autentikasi (register/login/logout) dan manajemen file milik akun bersifat internal untuk dashboard, dan sengaja tidak didokumentasikan publik.
+    - contentinfo [ref=e427]:
+      - generic [ref=e429]:
+        - generic [ref=e430]:
+          - generic [ref=e431]: GOREKK
+          - paragraph [ref=e436]: Satu dasbor untuk seluruh GoPay Merchant kamu. Realtime, aman, dan mudah digunakan.
+          - paragraph [ref=e437]: © 2026 GOREKK. Seluruh hak dilindungi.
+        - generic [ref=e438]:
+          - heading "Layanan" [level=4] [ref=e439]
+          - list [ref=e440]:
+            - listitem [ref=e441]:
+              - link "Beranda" [ref=e442] [cursor=pointer]:
+                - /url: /
+            - listitem [ref=e443]:
+              - link "Mulai Gratis" [ref=e444] [cursor=pointer]:
+                - /url: /register
+            - listitem [ref=e445]:
+              - link "Masuk" [ref=e446] [cursor=pointer]:
+                - /url: /login
+            - listitem [ref=e447]:
+              - link "Dokumentasi API" [ref=e448] [cursor=pointer]:
+                - /url: /docs
+        - generic [ref=e449]:
+          - heading "Bantuan" [level=4] [ref=e450]
+          - list [ref=e451]:
+            - listitem [ref=e452]:
+              - link "FAQ" [ref=e453] [cursor=pointer]:
+                - /url: /faq
+            - listitem [ref=e454]:
+              - link "Blog" [ref=e455] [cursor=pointer]:
+                - /url: /blog
+            - listitem [ref=e456]:
+              - link "Status Sistem" [ref=e457] [cursor=pointer]:
+                - /url: /status
+            - listitem [ref=e458]:
+              - link "Syarat & Ketentuan" [ref=e459] [cursor=pointer]:
+                - /url: /terms
+            - listitem [ref=e460]:
+              - link "Kebijakan Privasi" [ref=e461] [cursor=pointer]:
+                - /url: /privacy
+        - generic [ref=e462]:
+          - heading "Tentang" [level=4] [ref=e463]
+          - list:
+            - listitem:
+              - link:
+                - /url: ""

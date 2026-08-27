@@ -177,7 +177,7 @@ export interface Database {
           seller_id: string
           shop_id: string
           status: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
-          payment_method: 'cod' | 'midtrans'
+          payment_method: 'cod' | 'gorekk'
           payment_status: 'pending' | 'paid' | 'failed' | 'expired'
           subtotal: number
           tax_amount: number
@@ -200,7 +200,7 @@ export interface Database {
           seller_id: string
           shop_id: string
           status?: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
-          payment_method?: 'cod' | 'midtrans'
+          payment_method?: 'cod' | 'gorekk'
           payment_status?: 'pending' | 'paid' | 'failed' | 'expired'
           subtotal: number
           tax_amount?: number
@@ -223,7 +223,7 @@ export interface Database {
           seller_id?: string
           shop_id?: string
           status?: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
-          payment_method?: 'cod' | 'midtrans'
+          payment_method?: 'cod' | 'gorekk'
           payment_status?: 'pending' | 'paid' | 'failed' | 'expired'
           subtotal?: number
           tax_amount?: number

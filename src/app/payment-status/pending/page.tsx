@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Clock, AlertCircle, Home, RefreshCw } from 'lucide-react'
+import { Clock, AlertCircle, Home, RefreshCw, QrCode } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
 import toast from 'react-hot-toast'
@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 interface PendingOrderDetails {
   order_id: string
   transaction_id: string
+  snap_redirect_url: string | null
   total_amount: number
   status: string
   payment_status: string
@@ -38,7 +39,7 @@ function PaymentPendingContent() {
   const [refreshing, setRefreshing] = useState(false)
   const [timeLeft, setTimeLeft] = useState<string>('')
   const orderId = searchParams.get('order_id')
-  const transactionId = searchParams.get('transaction_id')
+  const invoiceId = searchParams.get('invoice_id')
 
   useEffect(() => {
     if (!user) {
@@ -56,7 +57,7 @@ function PaymentPendingContent() {
 
         const { data, error } = await (supabase as any)
           .from('orders')
-          .select('id, transaction_id, total_amount, status, payment_status, payment_method, created_at, expires_at, shipping_address')
+          .select('id, transaction_id, snap_redirect_url, total_amount, status, payment_status, payment_method, created_at, expires_at, shipping_address')
           .eq('id', orderId)
           .single()
 
@@ -66,6 +67,7 @@ function PaymentPendingContent() {
         const orderRow = data as unknown as {
           id: string
           transaction_id: string | null
+          snap_redirect_url: string | null
           total_amount: number
           status: string
           payment_status: string
@@ -79,7 +81,8 @@ function PaymentPendingContent() {
 
         setOrderDetails({
           order_id: orderRow.id,
-          transaction_id: orderRow.transaction_id || transactionId || 'N/A',
+          transaction_id: orderRow.transaction_id || invoiceId || 'N/A',
+          snap_redirect_url: orderRow.snap_redirect_url,
           total_amount: orderRow.total_amount,
           status: orderRow.status,
           payment_status: orderRow.payment_status,
@@ -90,8 +93,6 @@ function PaymentPendingContent() {
           email: contact.email || user?.email || '-',
         })
 
-        // If payment already resolved by the time this page loads
-        // (e.g. webhook beat the redirect), skip straight to the right page.
         if (orderRow.payment_status === 'paid') {
           router.replace(`/payment-status/success?order_id=${orderId}`)
         } else if (orderRow.payment_status === 'failed' || orderRow.payment_status === 'expired') {
@@ -106,7 +107,7 @@ function PaymentPendingContent() {
     }
 
     fetchOrderDetails()
-  }, [orderId, user, profile, router, transactionId])
+  }, [orderId, user, profile, router, invoiceId])
 
   // Timer countdown
   useEffect(() => {
@@ -135,15 +136,13 @@ function PaymentPendingContent() {
     return () => clearInterval(interval)
   }, [orderDetails?.expires_at])
 
-  // Real-time & polling status check: ask the server (which itself queries
-  // Midtrans if needed) rather than reading `orders` directly, so the
-  // authoritative status logic lives in one place (the API route).
+  // Polling status check via Gorekk
   useEffect(() => {
     if (!orderId) return
 
     const checkStatus = async () => {
       try {
-        const response = await fetch(`/api/payments/snap?orderId=${orderId}`)
+        const response = await fetch(`/api/payments/gorekk?orderId=${orderId}`)
         if (!response.ok) return
         const data = await response.json()
 
@@ -168,7 +167,7 @@ function PaymentPendingContent() {
     try {
       if (!orderId) return
 
-      const response = await fetch(`/api/payments/snap?orderId=${orderId}`)
+      const response = await fetch(`/api/payments/gorekk?orderId=${orderId}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -212,8 +211,28 @@ function PaymentPendingContent() {
             <Clock className="w-12 h-12 text-amber-600 animate-pulse" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Pembayaran Menunggu</h1>
-          <p className="text-gray-600">Pesanan Anda sedang menunggu konfirmasi pembayaran</p>
+          <p className="text-gray-600">Scan QR code di bawah untuk menyelesaikan pembayaran</p>
         </div>
+
+        {/* QR Code */}
+        {orderDetails?.snap_redirect_url && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div className="flex flex-col items-center">
+              <img
+                src={orderDetails.snap_redirect_url}
+                alt="QR Code Pembayaran"
+                className="w-64 h-64 object-contain mb-4"
+              />
+              <div className="flex items-center gap-2 text-amber-600 mb-2">
+                <QrCode size={20} />
+                <p className="font-semibold text-sm">QR Code Pembayaran</p>
+              </div>
+              <p className="text-xs text-gray-500 text-center">
+                Buka aplikasi GoPay, e-wallet, atau aplikasi bank dan scan QR code ini
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Order Details */}
         {orderDetails && (
@@ -238,7 +257,7 @@ function PaymentPendingContent() {
             <div className="border-b border-gray-100 pb-4">
               <p className="text-sm text-gray-500 mb-1">Metode Pembayaran</p>
               <p className="font-semibold text-gray-900 capitalize">
-                {orderDetails.payment_method}
+                {orderDetails.payment_method === 'gorekk' ? 'Pembayaran Online (QRIS)' : 'COD'}
               </p>
             </div>
 
@@ -280,7 +299,7 @@ function PaymentPendingContent() {
               <p className="font-semibold text-primary-900 text-sm">Catatan Penting</p>
               <p className="text-sm text-primary-800 mt-2">
                 Halaman ini otomatis memeriksa status pembayaran Anda setiap beberapa detik.
-                Segera selesaikan pembayaran melalui metode yang telah dipilih. Pesanan akan
+                Segera selesaikan pembayaran dengan scan QR code. Pesanan akan
                 otomatis dibatalkan jika pembayaran tidak selesai dalam waktu yang ditentukan.
               </p>
             </div>
