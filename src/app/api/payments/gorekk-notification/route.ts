@@ -7,25 +7,53 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+async function findOrderByInvoiceId(invoiceId: string) {
+  return supabase
+    .from('orders')
+    .select('id, status, payment_status, user_id, total_amount, transaction_id')
+    .eq('transaction_id', invoiceId)
+    .single()
+}
+
+async function findOrderByOrderId(orderId: string) {
+  return supabase
+    .from('orders')
+    .select('id, status, payment_status, user_id, total_amount, transaction_id')
+    .eq('id', orderId)
+    .single()
+}
+
 export async function POST(request: NextRequest) {
   try {
     const notification = await request.json() as Record<string, unknown>
 
-    const invoiceId = String(notification.invoice_id || notification.order_id || '')
+    console.log('Gorekk notification received:', JSON.stringify(notification))
 
-    if (!invoiceId) {
-      console.warn('Gorekk notification missing invoice_id')
+    const invoiceId = String(notification.invoice_id || '')
+    const orderId = String(notification.order_id || '')
+
+    if (!invoiceId && !orderId) {
+      console.warn('Gorekk notification missing invoice_id/order_id')
       return NextResponse.json({ error: 'Invalid notification' }, { status: 400 })
     }
 
-    const { data: orderData, error: fetchError } = await supabase
-      .from('orders')
-      .select('id, status, payment_status, user_id, total_amount')
-      .eq('transaction_id', invoiceId)
-      .single()
+    let orderData = null
+    let fetchError = null
+
+    if (invoiceId) {
+      const result = await findOrderByInvoiceId(invoiceId)
+      orderData = result.data
+      fetchError = result.error
+    }
+
+    if (!orderData && orderId) {
+      const result = await findOrderByOrderId(orderId)
+      orderData = result.data
+      fetchError = result.error
+    }
 
     if (fetchError || !orderData) {
-      console.error('Order not found for invoice:', invoiceId)
+      console.error('Order not found for invoice/order:', { invoiceId, orderId })
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
@@ -35,18 +63,21 @@ export async function POST(request: NextRequest) {
       payment_status: string
       user_id: string
       total_amount: number
+      transaction_id: string | null
     }
 
     let gorekkStatus: 'pending' | 'paid' | 'failed' | 'expired' = 'pending'
 
     try {
-      const statusData = await getGorekkInvoiceStatus(invoiceId)
+      const statusData = await getGorekkInvoiceStatus(invoiceId || order.transaction_id || '')
       const rawStatus = statusData.status.toLowerCase()
 
-      if (rawStatus === 'paid') {
+      if (rawStatus === 'paid' || rawStatus === 'success' || rawStatus === 'settlement' || rawStatus === 'capture') {
         gorekkStatus = 'paid'
-      } else if (rawStatus === 'failed' || rawStatus === 'expired') {
-        gorekkStatus = rawStatus
+      } else if (rawStatus === 'failed' || rawStatus === 'deny' || rawStatus === 'cancel') {
+        gorekkStatus = 'failed'
+      } else if (rawStatus === 'expired' || rawStatus === 'expire') {
+        gorekkStatus = 'expired'
       }
     } catch (err) {
       console.error('Error verifying Gorekk invoice status:', err)
@@ -90,7 +121,7 @@ export async function POST(request: NextRequest) {
         .from('payment_notifications')
         .insert({
           order_id: order.id,
-          transaction_id: invoiceId,
+          transaction_id: invoiceId || order.transaction_id || '',
           status: gorekkStatus,
           response_data: notification,
         })
