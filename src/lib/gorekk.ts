@@ -8,7 +8,7 @@ import {
   GorekkConfigError,
 } from './gorekk-config'
 
-const CACHE_TTL_MS = 4000
+const CACHE_TTL_MS = 10000
 const statusCache = new Map<string, { data: GorekkInvoiceStatusResponse; expiresAt: number }>()
 
 export interface GorekkCreateQrisParams {
@@ -108,6 +108,18 @@ export async function getGorekkInvoiceStatus(
   const response = await fetch(url.toString(), {
     headers: gorekkAuthHeader(),
   })
+
+  if (response.status === 429) {
+    const cached = getCachedStatus(invoiceId)
+    if (cached) {
+      return cached
+    }
+    const text = await response.text().catch(() => '(unreadable body)')
+    throw new GorekkApiError(
+      `Gorekk invoice check rate limited: ${text}`,
+      'GOREKK_RATE_LIMITED'
+    )
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => '(unreadable body)')

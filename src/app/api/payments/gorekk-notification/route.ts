@@ -1,26 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getGorekkInvoiceStatus, GorekkApiError } from '@/lib/gorekk'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-async function findOrderByInvoiceId(invoiceId: string) {
-  return supabase
-    .from('orders')
-    .select('id, status, payment_status, user_id, total_amount, transaction_id')
-    .eq('transaction_id', invoiceId)
-    .single()
-}
+function mapNotificationToStatus(rawStatus: string): 'pending' | 'paid' | 'failed' | 'expired' {
+  const status = String(rawStatus || '').toLowerCase()
 
-async function findOrderByOrderId(orderId: string) {
-  return supabase
-    .from('orders')
-    .select('id, status, payment_status, user_id, total_amount, transaction_id')
-    .eq('id', orderId)
-    .single()
+  if (status === 'paid' || status === 'success' || status === 'settlement' || status === 'capture') {
+    return 'paid'
+  }
+  if (status === 'failed' || status === 'deny' || status === 'cancel') {
+    return 'failed'
+  }
+  if (status === 'expired' || status === 'expire') {
+    return 'expired'
+  }
+  return 'pending'
 }
 
 export async function POST(request: NextRequest) {
@@ -37,17 +35,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid notification' }, { status: 400 })
     }
 
+    const rawStatus = String(notification.status || '')
+    const gorekkStatus = mapNotificationToStatus(rawStatus)
+
+    console.log('Gorekk notification status mapping:', { rawStatus, gorekkStatus, invoiceId, orderId })
+
+    if (gorekkStatus === 'pending') {
+      console.log('Gorekk notification status is pending, ignoring')
+      return NextResponse.json({ success: true })
+    }
+
     let orderData = null
     let fetchError = null
 
     if (invoiceId) {
-      const result = await findOrderByInvoiceId(invoiceId)
+      const result = await supabase
+        .from('orders')
+        .select('id, status, payment_status, user_id, total_amount, transaction_id')
+        .eq('transaction_id', invoiceId)
+        .single()
       orderData = result.data
       fetchError = result.error
     }
 
     if (!orderData && orderId) {
-      const result = await findOrderByOrderId(orderId)
+      const result = await supabase
+        .from('orders')
+        .select('id, status, payment_status, user_id, total_amount, transaction_id')
+        .eq('id', orderId)
+        .single()
       orderData = result.data
       fetchError = result.error
     }
@@ -66,29 +82,13 @@ export async function POST(request: NextRequest) {
       transaction_id: string | null
     }
 
-    let gorekkStatus: 'pending' | 'paid' | 'failed' | 'expired' = 'pending'
-
-    try {
-      const statusData = await getGorekkInvoiceStatus(invoiceId || order.transaction_id || '')
-      const rawStatus = String(statusData?.status || 'pending').toLowerCase()
-
-      if (rawStatus === 'paid' || rawStatus === 'success' || rawStatus === 'settlement' || rawStatus === 'capture') {
-        gorekkStatus = 'paid'
-      } else if (rawStatus === 'failed' || rawStatus === 'deny' || rawStatus === 'cancel') {
-        gorekkStatus = 'failed'
-      } else if (rawStatus === 'expired' || rawStatus === 'expire') {
-        gorekkStatus = 'expired'
-      }
-    } catch (err) {
-      console.error('Error verifying Gorekk invoice status:', err)
-      return NextResponse.json(
-        { error: 'Failed to verify payment status' },
-        { status: 502 }
-      )
-    }
-
     if (order.payment_status === 'paid' && gorekkStatus !== 'paid') {
       console.log(`Order ${order.id} already paid, ignoring duplicate notification`)
+      return NextResponse.json({ success: true })
+    }
+
+    if (order.payment_status === gorekkStatus) {
+      console.log(`Order ${order.id} already in status ${gorekkStatus}, idempotent skip`)
       return NextResponse.json({ success: true })
     }
 
