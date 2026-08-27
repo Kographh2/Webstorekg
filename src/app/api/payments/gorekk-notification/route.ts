@@ -1,10 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getGorekkInvoiceStatus, GorekkApiError } from '@/lib/gorekk'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+async function findOrderByInvoiceId(invoiceId: string) {
+  return supabase
+    .from('orders')
+    .select('id, status, payment_status, user_id, total_amount, transaction_id, payment_method, shipping_address')
+    .eq('transaction_id', invoiceId)
+    .single()
+}
+
+async function findOrderByOrderId(orderId: string) {
+  return supabase
+    .from('orders')
+    .select('id, status, payment_status, user_id, total_amount, transaction_id, payment_method, shipping_address')
+    .eq('id', orderId)
+    .single()
+}
+
+async function sendInvoiceEmail(order: any) {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: order.id }),
+    })
+    if (!res.ok) {
+      const err = await res.text()
+      console.error(`Failed to send invoice email for ${order.id}:`, err)
+    }
+  } catch (err) {
+    console.error('Error calling invoice email API:', err)
+  }
+}
+
+async function sendDigitalProductsEmail(order: any) {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/products/send-digital`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: order.id }),
+    })
+    if (!res.ok) {
+      const err = await res.text()
+      console.error(`Failed to send digital products email for ${order.id}:`, err)
+    }
+  } catch (err) {
+    console.error('Error calling digital products email API:', err)
+  }
+}
 
 function mapNotificationToStatus(rawStatus: string): 'pending' | 'paid' | 'failed' | 'expired' {
   const status = String(rawStatus || '').toLowerCase()
@@ -49,21 +98,13 @@ export async function POST(request: NextRequest) {
     let fetchError = null
 
     if (invoiceId) {
-      const result = await supabase
-        .from('orders')
-        .select('id, status, payment_status, user_id, total_amount, transaction_id')
-        .eq('transaction_id', invoiceId)
-        .single()
+      const result = await findOrderByInvoiceId(invoiceId)
       orderData = result.data
       fetchError = result.error
     }
 
     if (!orderData && orderId) {
-      const result = await supabase
-        .from('orders')
-        .select('id, status, payment_status, user_id, total_amount, transaction_id')
-        .eq('id', orderId)
-        .single()
+      const result = await findOrderByOrderId(orderId)
       orderData = result.data
       fetchError = result.error
     }
@@ -80,6 +121,8 @@ export async function POST(request: NextRequest) {
       user_id: string
       total_amount: number
       transaction_id: string | null
+      payment_method: string
+      shipping_address: any
     }
 
     if (order.payment_status === 'paid' && gorekkStatus !== 'paid') {
@@ -130,6 +173,12 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Order ${order.id} payment_status -> ${gorekkStatus}`)
+
+    if (gorekkStatus === 'paid') {
+      sendInvoiceEmail(order)
+      sendDigitalProductsEmail(order)
+    }
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Notification handler error:', error)

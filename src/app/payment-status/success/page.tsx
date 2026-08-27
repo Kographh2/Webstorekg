@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle, Download, Home, Clock } from 'lucide-react'
+import { CheckCircle, Download, Home, Clock, Mail, Package } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
 import toast from 'react-hot-toast'
@@ -17,6 +17,7 @@ interface OrderDetails {
   seller_name: string
   customer_name: string
   email: string
+  has_digital: boolean
 }
 
 interface ShippingAddressShape {
@@ -34,6 +35,7 @@ function PaymentSuccessContent() {
   const { user, profile } = useAuth()
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
   const orderId = searchParams.get('order_id')
   const transactionId = searchParams.get('transaction_id')
   const isCod = searchParams.get('method') === 'cod'
@@ -75,6 +77,24 @@ function PaymentSuccessContent() {
         const shopData = Array.isArray(orderRow.shop) ? orderRow.shop[0] : orderRow.shop
         const contact = orderRow.shipping_address || {}
 
+        const { data: orderItems } = await (supabase as any)
+          .from('order_items')
+          .select(`
+            *,
+            product:products(
+              id,
+              name,
+              product_type,
+              digital_delivery_content,
+              digital_file_path
+            )
+          `)
+          .eq('order_id', orderId)
+
+        const hasDigital = (orderItems || []).some(
+          (item: any) => item.product?.product_type === 'digital' || item.product?.digital_delivery_content || item.product?.digital_file_path
+        )
+
         setOrderDetails({
           order_id: orderRow.id,
           transaction_id: orderRow.transaction_id || transactionId || 'N/A',
@@ -85,6 +105,7 @@ function PaymentSuccessContent() {
           seller_name: shopData?.name || 'Unknown',
           customer_name: contact.full_name || profile?.full_name || '-',
           email: contact.email || user?.email || '-',
+          has_digital: hasDigital,
         })
       } catch (error) {
         console.error('Error fetching order:', error)
@@ -97,11 +118,60 @@ function PaymentSuccessContent() {
     fetchOrderDetails()
   }, [orderId, user, router, transactionId])
 
+  useEffect(() => {
+    const sendOrderEmails = async () => {
+      if (!orderId || !orderDetails || orderDetails.payment_status !== 'paid') return
+      if (sending) return
+
+      setSending(true)
+      try {
+        const [invoiceRes, digitalRes] = await Promise.all([
+          fetch('/api/invoices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId }),
+          }),
+          fetch('/api/products/send-digital', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId }),
+          }),
+        ])
+
+        if (invoiceRes.ok) {
+          toast.success('Invoice berhasil dikirim ke email')
+        }
+        if (digitalRes.ok) {
+          const digitalData = await digitalRes.json()
+          if (digitalData.message !== 'No digital products in this order') {
+            toast.success('Produk digital berhasil dikirim ke email')
+          }
+        }
+      } catch (error) {
+        console.error('Error sending order emails:', error)
+      } finally {
+        setSending(false)
+      }
+    }
+
+    sendOrderEmails()
+  }, [orderId, orderDetails, sending])
+
   const handleDownloadInvoice = async () => {
     try {
-      // In real scenario, this would call an API to generate PDF invoice
-      toast.success('Invoice sedang diunduh...')
-      // TODO: Implement actual invoice download
+      if (!orderId) return
+      const res = await fetch(`/api/invoices?order_id=${orderId}`)
+      if (!res.ok) throw new Error('Failed to generate invoice')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Invoice-${orderId.slice(0, 8)}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success('Invoice berhasil diunduh')
     } catch (error) {
       console.error('Error downloading invoice:', error)
       toast.error('Gagal mengunduh invoice')
@@ -171,6 +241,21 @@ function PaymentSuccessContent() {
               <p className="font-semibold text-gray-900">
                 {new Date(orderDetails.created_at).toLocaleString('id-ID')}
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Digital Product Notice */}
+        {orderDetails?.has_digital && (
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Package className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-blue-900 text-sm">Produk Digital</p>
+                <p className="text-sm text-blue-800 mt-1">
+                  File produk digital telah dikirim ke email Anda. Periksa inbox atau folder spam.
+                </p>
+              </div>
             </div>
           </div>
         )}
