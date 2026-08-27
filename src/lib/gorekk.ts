@@ -8,6 +8,9 @@ import {
   GorekkConfigError,
 } from './gorekk-config'
 
+const CACHE_TTL_MS = 4000
+const statusCache = new Map<string, { data: GorekkInvoiceStatusResponse; expiresAt: number }>()
+
 export interface GorekkCreateQrisParams {
   amount: number
   orderId: string
@@ -71,10 +74,33 @@ export async function createGorekkQris(
   return data
 }
 
+function getCachedStatus(invoiceId: string): GorekkInvoiceStatusResponse | null {
+  const cached = statusCache.get(invoiceId)
+  if (!cached) return null
+  if (Date.now() > cached.expiresAt) {
+    statusCache.delete(invoiceId)
+    return null
+  }
+  return cached.data
+}
+
+function setCachedStatus(invoiceId: string, data: GorekkInvoiceStatusResponse) {
+  statusCache.set(invoiceId, { data, expiresAt: Date.now() + CACHE_TTL_MS })
+}
+
 export async function getGorekkInvoiceStatus(
   invoiceId: string
 ): Promise<GorekkInvoiceStatusResponse> {
   assertGorekkConfig()
+
+  if (!invoiceId) {
+    throw new GorekkApiError('Missing invoice_id', 'INVALID_REQUEST')
+  }
+
+  const cached = getCachedStatus(invoiceId)
+  if (cached) {
+    return cached
+  }
 
   const url = new URL(`${GOREKK_BASE_URL}/qris/invoice`)
   url.searchParams.set('invoice_id', invoiceId)
@@ -91,14 +117,24 @@ export async function getGorekkInvoiceStatus(
     )
   }
 
-  const data = (await response.json()) as GorekkInvoiceStatusResponse
-  if (!data.success) {
+  const raw = await response.json()
+
+  if (!raw || typeof raw !== 'object' || !raw.success) {
     throw new GorekkApiError(
       'Gorekk invoice check returned failure',
       'GOREKK_REQUEST_REJECTED'
     )
   }
 
+  const data = raw as GorekkInvoiceStatusResponse
+  if (!data || !data.status) {
+    throw new GorekkApiError(
+      'Gorekk returned an invalid response',
+      'GOREKK_INVALID_RESPONSE'
+    )
+  }
+
+  setCachedStatus(invoiceId, data)
   return data
 }
 

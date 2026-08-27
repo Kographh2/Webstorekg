@@ -208,7 +208,7 @@ function PaymentPendingContent() {
       }
     }
 
-    const interval = setInterval(checkStatus, 5000)
+    const interval = setInterval(checkStatus, 15000)
     return () => clearInterval(interval)
   }, [orderId, router])
 

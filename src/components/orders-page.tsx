@@ -52,7 +52,7 @@ export default function OrdersPage() {
       }
     }
     reconcile()
-    const interval = setInterval(reconcile, 8000)
+    const interval = setInterval(reconcile, 15000)
     return () => {
       cancelled = true
       clearInterval(interval)

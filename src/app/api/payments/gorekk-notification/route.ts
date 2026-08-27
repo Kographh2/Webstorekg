@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const statusData = await getGorekkInvoiceStatus(invoiceId || order.transaction_id || '')
-      const rawStatus = statusData.status.toLowerCase()
+      const rawStatus = String(statusData?.status || 'pending').toLowerCase()
 
       if (rawStatus === 'paid' || rawStatus === 'success' || rawStatus === 'settlement' || rawStatus === 'capture') {
         gorekkStatus = 'paid'
