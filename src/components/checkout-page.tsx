@@ -184,12 +184,31 @@ export default function CheckoutPage() {
           phone: normalizedShippingAddress.phone,
           customerName: normalizedShippingAddress.full_name,
           paymentMethod,
-          itemDetails: orderItemsPayload.map((item) => ({
-            id: item.product_id,
-            price: item.price,
-            quantity: item.quantity,
-            name: item.product_name,
-          })),
+          itemDetails: (() => {
+            const items = orderItemsPayload.map((item) => ({
+              id: item.product_id,
+              price: item.price,
+              quantity: item.quantity,
+              name: item.product_name,
+            }))
+            if (tax > 0) {
+              items.push({
+                id: 'tax',
+                price: tax,
+                quantity: 1,
+                name: 'Pajak (5%)',
+              })
+            }
+            if (shipping > 0) {
+              items.push({
+                id: 'shipping',
+                price: shipping,
+                quantity: 1,
+                name: 'Ongkos Kirim',
+              })
+            }
+            return items
+          })(),
           shippingAddress: requiredShipping ? normalizedShippingAddress : undefined,
         }),
       })
