@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import nodemailer from 'nodemailer'
 import { formatCurrency } from '@/lib/utils'
 
 export const runtime = 'nodejs'
@@ -10,42 +9,47 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-})
+function getTransporter() {
+  const host = process.env.SMTP_HOST
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASSWORD
+
+  if (!host || !user || !pass) {
+    return null
+  }
+
+  return require('nodemailer').createTransport({
+    host,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user, pass },
+  })
+}
 
 export async function POST(request: NextRequest) {
   try {
     const { orderId } = await request.json()
+    if (!orderId) {
+      return NextResponse.json({ error: 'orderId is required' }, { status: 400 })
+    }
 
-    const { data: order } = await supabase
+    const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select(`
-        *,
-        user:profiles(email, full_name),
-        shop:shops(name)
-      `)
+      .select('*')
       .eq('id', orderId)
       .single()
 
-    if (!order) {
+    if (orderError || !order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
-    const { data: orderItems } = await supabase
+    const { data: orderItems, error: itemsError } = await supabase
       .from('order_items')
       .select(`
         *,
         product:products(
           id,
           name,
-          price,
           product_type,
           digital_delivery_content,
           digital_file_path
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
       `)
       .eq('order_id', orderId)
 
-    if (!orderItems) {
+    if (itemsError || !orderItems) {
       return NextResponse.json({ error: 'Order items not found' }, { status: 404 })
     }
 
@@ -64,6 +68,15 @@ export async function POST(request: NextRequest) {
     if (digitalProducts.length === 0) {
       return NextResponse.json({
         message: 'No digital products in this order',
+      })
+    }
+
+    const transporter = getTransporter()
+    if (!transporter) {
+      console.warn('SMTP not configured, skipping digital products email')
+      return NextResponse.json({
+        success: true,
+        message: 'Digital products processed (SMTP not configured)',
       })
     }
 

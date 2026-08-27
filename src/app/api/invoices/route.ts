@@ -92,7 +92,7 @@ function buildInvoicePdf(order: any, items: any[], shopName: string): Buffer {
   const summaryRight = 500
 
   doc.text('Subtotal     :', summaryLeft, doc.y)
-  doc.text(`Rp ${formatCurrency(order.subtotal)}`, summaryRight, doc.y - 10)
+  doc.text(`Rp ${formatCurrency(order.subtotal || 0)}`, summaryRight, doc.y - 10)
 
   doc.text('Ongkir       :', summaryLeft, doc.y + 10)
   doc.text(`Rp ${formatCurrency(order.shipping_cost || 0)}`, summaryRight, doc.y)
@@ -108,7 +108,7 @@ function buildInvoicePdf(order: any, items: any[], shopName: string): Buffer {
 
   doc.font('Helvetica-Bold')
   doc.text('TOTAL        :', summaryLeft, doc.y)
-  doc.text(`Rp ${formatCurrency(order.total_amount)}`, summaryRight, doc.y - 10)
+  doc.text(`Rp ${formatCurrency(order.total_amount || 0)}`, summaryRight, doc.y - 10)
 
   doc.moveDown(1.5)
   doc.fontSize(9).font('Helvetica')
