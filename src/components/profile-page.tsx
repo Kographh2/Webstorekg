@@ -370,12 +370,24 @@ export default function ProfilePage() {
             ) : (
               orders.map((order) => {
                 const statusInfo = getStatusInfo(order.status)
+                const navigateToOrder = () => {
+                  if (order.payment_status === 'pending' && order.payment_method === 'gorekk') {
+                    router.push(`/payment-status/pending?order_id=${order.id}`)
+                  } else if (order.payment_status === 'paid') {
+                    router.push(`/payment-status/success?order_id=${order.id}`)
+                  } else if (order.payment_status === 'failed' || order.payment_status === 'expired') {
+                    router.push(`/payment-status/failed?order_id=${order.id}&reason=${order.payment_status}`)
+                  } else {
+                    router.push(`/payment-status/success?order_id=${order.id}`)
+                  }
+                }
                 return (
                 <motion.div
                   key={order.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+                  onClick={navigateToOrder}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs text-gray-500">
@@ -388,12 +400,13 @@ export default function ProfilePage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-sm">Pesanan #{order.id.slice(0, 8)}</p>
-                      <p className="text-xs text-gray-500">{order.payment_method.toUpperCase()}</p>
+                      <p className="text-xs text-gray-500">{order.payment_method === 'gorekk' ? 'Pembayaran Online (QRIS)' : 'COD'}</p>
                     </div>
                     <p className="font-bold text-sm">{formatCurrency(order.total_amount)}</p>
                   </div>
                 </motion.div>
-              )})
+                )
+              })
             )}
           </div>
         )}

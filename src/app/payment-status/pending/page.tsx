@@ -109,6 +109,56 @@ function PaymentPendingContent() {
     fetchOrderDetails()
   }, [orderId, user, profile, router, invoiceId])
 
+  // Warn user before leaving/closing tab while payment is still pending
+  useEffect(() => {
+    if (!orderId || !orderDetails) return
+
+    const isPending = orderDetails.payment_status === 'pending'
+    if (!isPending) return
+
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [orderId, orderDetails])
+
+  // Real-time status updates via Supabase Realtime
+  useEffect(() => {
+    if (!orderId) return
+
+    const channel = supabase
+      .channel(`order-payment-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderId}`,
+        },
+        (payload) => {
+          const newRow = payload.new as { payment_status?: string; status?: string }
+          if (newRow.payment_status === 'paid') {
+            toast.success('Pembayaran telah dikonfirmasi!')
+            router.push(`/payment-status/success?order_id=${orderId}`)
+          } else if (newRow.payment_status === 'failed' || newRow.payment_status === 'expired') {
+            toast.error('Pembayaran gagal atau kedaluwarsa')
+            router.push(`/payment-status/failed?order_id=${orderId}&reason=${newRow.payment_status}`)
+          } else {
+            setOrderDetails((prev) => prev ? { ...prev, payment_status: newRow.payment_status || prev.payment_status, status: newRow.status || prev.status } : prev)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [orderId, router])
+
   // Timer countdown
   useEffect(() => {
     if (!orderDetails?.expires_at) return
@@ -136,7 +186,7 @@ function PaymentPendingContent() {
     return () => clearInterval(interval)
   }, [orderDetails?.expires_at])
 
-  // Polling status check via Gorekk
+  // Fallback polling every 5 seconds
   useEffect(() => {
     if (!orderId) return
 
@@ -189,6 +239,15 @@ function PaymentPendingContent() {
     } finally {
       setRefreshing(false)
     }
+  }
+
+  const handleLeave = () => {
+    if (orderDetails?.payment_status === 'pending') {
+      if (!confirm('Pembayaran Anda masih menunggu. Apakah Anda yakin ingin keluar?')) {
+        return
+      }
+    }
+    router.push('/')
   }
 
   if (loading) {
@@ -325,7 +384,7 @@ function PaymentPendingContent() {
           </button>
 
           <button
-            onClick={() => router.push('/')}
+            onClick={handleLeave}
             className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             <Home className="w-5 h-5" />

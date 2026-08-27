@@ -76,6 +76,18 @@ export default function OrdersPage() {
     }
   }
 
+  const navigateToOrder = (order: Order) => {
+    if (order.payment_status === 'pending' && order.payment_method === 'gorekk') {
+      router.push(`/payment-status/pending?order_id=${order.id}`)
+    } else if (order.payment_status === 'paid') {
+      router.push(`/payment-status/success?order_id=${order.id}`)
+    } else if (order.payment_status === 'failed' || order.payment_status === 'expired') {
+      router.push(`/payment-status/failed?order_id=${order.id}&reason=${order.payment_status}`)
+    } else {
+      router.push(`/payment-status/success?order_id=${order.id}`)
+    }
+  }
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'delivered':
@@ -165,7 +177,8 @@ export default function OrdersPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`rounded-2xl p-4 shadow-sm border border-gray-100 ${statusInfo.bgColor}`}
+                  onClick={() => navigateToOrder(order)}
+                  className={`rounded-2xl p-4 shadow-sm border border-gray-100 ${statusInfo.bgColor} cursor-pointer hover:shadow-md transition-shadow`}
                 >
                   <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-full ${statusInfo.color} flex-shrink-0`}>
