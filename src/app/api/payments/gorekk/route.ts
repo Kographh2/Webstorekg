@@ -75,6 +75,27 @@ function validatePayload(
   return null
 }
 
+async function triggerOrderPaidEmails(orderId: string) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  // Fire-and-forget, same as the webhook does. Both endpoints are
+  // idempotent (guarded by invoice_sent_at / digital_delivered_at on
+  // the order), so triggering from both the webhook AND this polling
+  // path is safe — this just makes sure the emails still go out even
+  // if Gorekk's webhook never reaches us and the buyer finds out their
+  // order is paid purely through this status-check endpoint instead.
+  fetch(`${baseUrl}/api/invoices`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId }),
+  }).catch((err) => console.error('Error triggering invoice email:', err))
+
+  fetch(`${baseUrl}/api/products/send-digital`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId }),
+  }).catch((err) => console.error('Error triggering digital product email:', err))
+}
+
 async function updateOrderPaid(orderId: string) {
   const { error } = await supabase
     .from('orders')
@@ -87,7 +108,10 @@ async function updateOrderPaid(orderId: string) {
 
   if (error) {
     console.error('Error updating order to paid:', error)
+    return
   }
+
+  triggerOrderPaidEmails(orderId)
 }
 
 async function updateOrderFailed(orderId: string, status: string) {

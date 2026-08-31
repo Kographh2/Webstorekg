@@ -191,6 +191,8 @@ export interface Database {
           snap_redirect_url: string | null
           payment_confirmed_at: string | null
           expires_at: string | null
+          invoice_sent_at: string | null
+          digital_delivered_at: string | null
           created_at: string
           updated_at: string
         }
@@ -214,6 +216,8 @@ export interface Database {
           snap_redirect_url?: string | null
           payment_confirmed_at?: string | null
           expires_at?: string | null
+          invoice_sent_at?: string | null
+          digital_delivered_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -237,6 +241,8 @@ export interface Database {
           snap_redirect_url?: string | null
           payment_confirmed_at?: string | null
           expires_at?: string | null
+          invoice_sent_at?: string | null
+          digital_delivered_at?: string | null
           created_at?: string
           updated_at?: string
         }

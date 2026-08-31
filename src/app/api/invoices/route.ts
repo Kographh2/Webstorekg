@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import nodemailer from 'nodemailer'
 import PDFDocument from 'pdfkit'
 import { formatCurrency } from '@/lib/utils'
 
@@ -11,15 +10,40 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-})
+function getTransporter() {
+  const host = process.env.SMTP_HOST
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!host || !user || !pass) return null
+
+  return require('nodemailer').createTransport({
+    host,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  })
+}
+
+// An invoice is meaningful once the order is actually confirmed — paid
+// online, or COD (which has no separate online payment step; the order
+// itself being created past 'pending' is the confirmation). This keeps
+// a stranger from generating/emailing an invoice for an order that was
+// never actually placed successfully.
+function isInvoiceable(order: { payment_status: string; payment_method: string; status: string }): boolean {
+  if (order.payment_status === 'paid') return true
+  if (order.payment_method === 'cod' && order.status !== 'pending') return true
+  return false
+}
+
+// formatCurrency() already returns a full "Rp150.000"-style string
+// (Indonesian locale currency format) — every `Rp ${formatCurrency(...)}`
+// call in the previous version of this file produced a doubled
+// "Rp Rp150.000" on the invoice PDF and in the confirmation email.
+// This helper is used everywhere a monetary value is rendered so that
+// never happens again in either place.
+function money(amount: number): string {
+  return formatCurrency(amount || 0)
+}
 
 function buildInvoicePdf(order: any, items: any[], shopName: string): Buffer {
   const doc = new PDFDocument({ size: 'A4', margin: 50 })
@@ -77,8 +101,8 @@ function buildInvoicePdf(order: any, items: any[], shopName: string): Buffer {
   for (const item of items) {
     doc.text(item.product_name || 'Produk', col1, doc.y)
     doc.text(String(item.quantity), col2, doc.y)
-    doc.text(`Rp ${formatCurrency(item.price)}`, col3, doc.y)
-    doc.text(`Rp ${formatCurrency(item.subtotal)}`, col4, doc.y)
+    doc.text(money(item.price), col3, doc.y)
+    doc.text(money(item.subtotal), col4, doc.y)
     doc.moveDown(0.4)
   }
 
@@ -92,23 +116,23 @@ function buildInvoicePdf(order: any, items: any[], shopName: string): Buffer {
   const summaryRight = 500
 
   doc.text('Subtotal     :', summaryLeft, doc.y)
-  doc.text(`Rp ${formatCurrency(order.subtotal || 0)}`, summaryRight, doc.y - 10)
+  doc.text(money(order.subtotal), summaryRight, doc.y - 10)
 
   doc.text('Ongkir       :', summaryLeft, doc.y + 10)
-  doc.text(`Rp ${formatCurrency(order.shipping_cost || 0)}`, summaryRight, doc.y)
+  doc.text(money(order.shipping_cost), summaryRight, doc.y)
 
   doc.text('Pajak        :', summaryLeft, doc.y + 10)
-  doc.text(`Rp ${formatCurrency(order.tax_amount || 0)}`, summaryRight, doc.y)
+  doc.text(money(order.tax_amount), summaryRight, doc.y)
 
   doc.text('Diskon       :', summaryLeft, doc.y + 10)
-  doc.text(`-Rp ${formatCurrency(order.discount_amount || 0)}`, summaryRight, doc.y)
+  doc.text(`-${money(order.discount_amount)}`, summaryRight, doc.y)
 
   doc.moveTo(50, doc.y + 12).lineTo(550, doc.y + 12).stroke()
   doc.moveDown(1)
 
   doc.font('Helvetica-Bold')
   doc.text('TOTAL        :', summaryLeft, doc.y)
-  doc.text(`Rp ${formatCurrency(order.total_amount || 0)}`, summaryRight, doc.y - 10)
+  doc.text(money(order.total_amount), summaryRight, doc.y - 10)
 
   doc.moveDown(1.5)
   doc.fontSize(9).font('Helvetica')
@@ -137,6 +161,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
+    if (!isInvoiceable(order as any)) {
+      return NextResponse.json(
+        { error: 'Invoice is only available once payment is confirmed', code: 'ORDER_NOT_CONFIRMED' },
+        { status: 403 }
+      )
+    }
+
     const { data: orderItems, error: itemsError } = await supabase
       .from('order_items')
       .select('*')
@@ -149,7 +180,7 @@ export async function GET(request: NextRequest) {
     const { data: shop } = await supabase
       .from('shops')
       .select('name')
-      .eq('id', order.shop_id)
+      .eq('id', (order as any).shop_id)
       .single()
 
     const pdfBuffer = buildInvoicePdf(order, orderItems, shop?.name || 'Kograph Store')
@@ -157,7 +188,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Invoice-${order.id.slice(0, 8)}.pdf"`,
+        'Content-Disposition': `attachment; filename="Invoice-${(order as any).id.slice(0, 8)}.pdf"`,
       },
     })
   } catch (error) {
@@ -183,6 +214,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
+    if (!isInvoiceable(order as any)) {
+      return NextResponse.json(
+        { error: 'Invoice is only available once payment is confirmed', code: 'ORDER_NOT_CONFIRMED' },
+        { status: 403 }
+      )
+    }
+
+    // Idempotency — the payment webhook and the buyer landing on the
+    // success page can each independently trigger this; without a
+    // guard the buyer gets the same invoice emailed to them twice.
+    if ((order as any).invoice_sent_at) {
+      return NextResponse.json({ success: true, message: 'Invoice already sent' })
+    }
+
+    const transporter = getTransporter()
+    if (!transporter) {
+      console.warn('SMTP not configured, skipping invoice email')
+      return NextResponse.json({ success: true, message: 'Invoice processed (SMTP not configured)' })
+    }
+
     const { data: orderItems, error: itemsError } = await supabase
       .from('order_items')
       .select('*')
@@ -195,20 +246,25 @@ export async function POST(request: NextRequest) {
     const { data: shop } = await supabase
       .from('shops')
       .select('name')
-      .eq('id', order.shop_id)
+      .eq('id', (order as any).shop_id)
       .single()
 
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, full_name')
-      .eq('id', order.user_id)
+      .eq('id', (order as any).user_id)
       .single()
 
     const pdfBuffer = buildInvoicePdf(order, orderItems, shop?.name || 'Kograph Store')
 
-    const shipping = order.shipping_address || {}
+    const shipping = (order as any).shipping_address || {}
     const customerEmail = profile?.email || shipping.email || ''
     const customerName = profile?.full_name || shipping.full_name || 'Customer'
+
+    if (!customerEmail) {
+      console.error(`No email on file for order ${orderId}`)
+      return NextResponse.json({ error: 'Customer email not found' }, { status: 500 })
+    }
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
@@ -219,10 +275,10 @@ export async function POST(request: NextRequest) {
 
           <div style="margin: 20px 0; padding: 20px; background-color: #f9f9f9; border-radius: 8px;">
             <h3 style="color: #333; margin-top: 0;">📋 Rincian Pesanan</h3>
-            <p style="color: #666; font-size: 14px; margin: 6px 0;"><strong>Nomor:</strong> ${order.id.slice(0, 8).toUpperCase()}</p>
+            <p style="color: #666; font-size: 14px; margin: 6px 0;"><strong>Nomor:</strong> ${(order as any).id.slice(0, 8).toUpperCase()}</p>
             <p style="color: #666; font-size: 14px; margin: 6px 0;"><strong>Toko:</strong> ${shop?.name || '-'}</p>
-            <p style="color: #666; font-size: 14px; margin: 6px 0;"><strong>Total:</strong> Rp ${formatCurrency(order.total_amount)}</p>
-            <p style="color: #666; font-size: 14px; margin: 6px 0;"><strong>Pembayaran:</strong> ${order.payment_method.toUpperCase()} - ${order.payment_status.toUpperCase()}</p>
+            <p style="color: #666; font-size: 14px; margin: 6px 0;"><strong>Total:</strong> ${money((order as any).total_amount)}</p>
+            <p style="color: #666; font-size: 14px; margin: 6px 0;"><strong>Pembayaran:</strong> ${(order as any).payment_method.toUpperCase()} - ${(order as any).payment_status.toUpperCase()}</p>
           </div>
 
           <p style="color: #666; font-size: 14px;">Invoice terlampir dalam format PDF.</p>
@@ -234,16 +290,21 @@ export async function POST(request: NextRequest) {
     await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to: customerEmail,
-      subject: `Invoice Pembayaran - ${order.id.slice(0, 8).toUpperCase()}`,
+      subject: `Invoice Pembayaran - ${(order as any).id.slice(0, 8).toUpperCase()}`,
       html: emailHtml,
       attachments: [
         {
-          filename: `Invoice-${order.id.slice(0, 8)}.pdf`,
+          filename: `Invoice-${(order as any).id.slice(0, 8)}.pdf`,
           content: pdfBuffer,
           contentType: 'application/pdf',
         },
       ],
     })
+
+    await supabase
+      .from('orders')
+      .update({ invoice_sent_at: new Date().toISOString() })
+      .eq('id', orderId)
 
     return NextResponse.json({ success: true, message: 'Invoice sent' })
   } catch (error) {

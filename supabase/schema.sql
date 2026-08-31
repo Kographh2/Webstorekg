@@ -134,6 +134,8 @@ create table public.orders (
   snap_redirect_url text,
   payment_confirmed_at timestamptz,
   expires_at timestamptz,
+  invoice_sent_at timestamptz,
+  digital_delivered_at timestamptz,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );

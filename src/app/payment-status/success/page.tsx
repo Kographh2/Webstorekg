@@ -85,14 +85,13 @@ function PaymentSuccessContent() {
               id,
               name,
               product_type,
-              digital_delivery_content,
-              digital_file_path
+              digital_delivery_content
             )
           `)
           .eq('order_id', orderId)
 
         const hasDigital = (orderItems || []).some(
-          (item: any) => item.product?.product_type === 'digital' || item.product?.digital_delivery_content || item.product?.digital_file_path
+          (item: any) => item.product?.product_type === 'digital' || item.product?.digital_delivery_content
         )
 
         setOrderDetails({

@@ -55,7 +55,7 @@ async function sendDigitalProductsEmail(order: any) {
   }
 }
 
-function mapNotificationToStatus(rawStatus: string): 'pending' | 'paid' | 'failed' | 'expired' {
+function mapGorekkStatus(rawStatus: string): 'pending' | 'paid' | 'failed' | 'expired' {
   const status = String(rawStatus || '').toLowerCase()
 
   if (status === 'paid' || status === 'success' || status === 'settlement' || status === 'capture') {
@@ -82,16 +82,6 @@ export async function POST(request: NextRequest) {
     if (!invoiceId && !orderId) {
       console.warn('Gorekk notification missing invoice_id/order_id')
       return NextResponse.json({ error: 'Invalid notification' }, { status: 400 })
-    }
-
-    const rawStatus = String(notification.status || '')
-    const gorekkStatus = mapNotificationToStatus(rawStatus)
-
-    console.log('Gorekk notification status mapping:', { rawStatus, gorekkStatus, invoiceId, orderId })
-
-    if (gorekkStatus === 'pending') {
-      console.log('Gorekk notification status is pending, ignoring')
-      return NextResponse.json({ success: true })
     }
 
     let orderData = null
@@ -125,8 +115,43 @@ export async function POST(request: NextRequest) {
       shipping_address: any
     }
 
+    // SECURITY: this endpoint is a public URL Gorekk calls, so its
+    // request body can't be trusted on its own — anyone who guesses or
+    // learns an order_id could otherwise POST a forged
+    // `{"order_id": "...", "status": "paid"}` here and mark an unpaid
+    // order paid for free (there was previously no verification at
+    // all). Instead of trusting `notification.status`, we ask Gorekk's
+    // own status API for the ground truth using OUR authenticated API
+    // key, and only ever act on what that authenticated call reports.
+    const invoiceToVerify = order.transaction_id || invoiceId
+    if (!invoiceToVerify) {
+      console.error(`No transaction_id to verify for order ${order.id}`)
+      return NextResponse.json({ error: 'No invoice to verify' }, { status: 400 })
+    }
+
+    let gorekkStatus: 'pending' | 'paid' | 'failed' | 'expired'
+    try {
+      const verified = await getGorekkInvoiceStatus(invoiceToVerify)
+      gorekkStatus = mapGorekkStatus(verified.status)
+    } catch (verifyError) {
+      // If Gorekk's status API itself is unreachable/erroring, we do
+      // NOT fall back to trusting the notification body — that would
+      // defeat the whole point of verifying. The regular status
+      // polling (GET /api/payments/gorekk) will pick this order up on
+      // its own schedule instead.
+      console.error(`Failed to verify Gorekk status for order ${order.id}:`, verifyError)
+      const code = verifyError instanceof GorekkApiError ? verifyError.code : 'VERIFY_FAILED'
+      return NextResponse.json({ error: 'Could not verify payment status', code }, { status: 502 })
+    }
+
+    console.log('Gorekk notification verified status:', { invoiceId: invoiceToVerify, gorekkStatus })
+
+    if (gorekkStatus === 'pending') {
+      return NextResponse.json({ success: true })
+    }
+
     if (order.payment_status === 'paid' && gorekkStatus !== 'paid') {
-      console.log(`Order ${order.id} already paid, ignoring duplicate notification`)
+      console.log(`Order ${order.id} already paid, ignoring conflicting notification`)
       return NextResponse.json({ success: true })
     }
 
@@ -164,7 +189,7 @@ export async function POST(request: NextRequest) {
         .from('payment_notifications')
         .insert({
           order_id: order.id,
-          transaction_id: invoiceId || order.transaction_id || '',
+          transaction_id: invoiceToVerify,
           status: gorekkStatus,
           response_data: notification,
         })
